@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Weave · Survey Importer</title>
-  <link rel="icon" type="image/x-icon" href="/weave-logo.ico" />
+  <!-- Inline-SVG favicon — no asset dependency, works on Netlify/Render/local. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20rx=%228%22%20fill=%22%236366f1%22/%3E%3Cpath%20d=%22M7%2010.5l3%2011%203.5-7.5L17%2021.5l3-11%22%20fill=%22none%22%20stroke=%22white%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -115,21 +116,25 @@
       justify-content: space-between;
       gap: 16px;
     }
-    .app-brand { display: flex; align-items: center; gap: 8px; }
+    .app-brand { display: flex; align-items: center; gap: 10px; }
+    /* CSS-only brand mark — no external image, so the header renders identically
+       on localhost, Render, and Netlify regardless of how /public/ is served. */
     .app-brand-mark {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 48px;
-      height: 48px;
-      background: transparent;
+      width: 38px;
+      height: 38px;
       flex-shrink: 0;
-    }
-    .app-brand-mark img {
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: contain;
+      background: linear-gradient(135deg, hsl(var(--primary)), color-mix(in oklab, hsl(var(--primary)) 65%, #5b21b6));
+      color: hsl(var(--primary-foreground));
+      border-radius: 10px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      box-shadow: 0 1px 0 hsl(0 0% 100% / 0.18) inset, 0 6px 18px hsl(var(--primary) / 0.28);
+      user-select: none;
     }
     .app-brand-text { line-height: 1.1; }
     .app-brand-title {
@@ -1202,6 +1207,127 @@
       background: hsl(var(--destructive) / 0.08);
       border-color: hsl(var(--destructive) / 0.25);
     }
+    /* Copy-placeholder button on each saved variable row + bulk parsed row. */
+    .variables-copy {
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      background: transparent;
+      border: 1px solid hsl(var(--border));
+      color: hsl(var(--muted-foreground));
+      cursor: pointer;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .variables-copy:hover {
+      color: hsl(var(--primary));
+      background: hsl(var(--primary) / 0.08);
+      border-color: hsl(var(--primary) / 0.3);
+    }
+    .variables-copy.copied {
+      color: hsl(var(--success));
+      background: hsl(var(--success) / 0.1);
+      border-color: hsl(var(--success) / 0.35);
+    }
+
+    /* ─────────── Bulk paste subsection inside Variables card ─────────── */
+    .bulk-paste {
+      margin-top: 16px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 10px;
+      overflow: hidden;
+      background: hsl(var(--card));
+    }
+    .bulk-paste > summary {
+      cursor: pointer;
+      padding: 11px 14px;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: hsl(var(--muted) / 0.55);
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .bulk-paste > summary:hover { background: hsl(var(--muted) / 0.85); }
+    .bulk-paste > summary::-webkit-details-marker { display: none; }
+    .bulk-paste-title {
+      flex: 1;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: hsl(var(--foreground));
+    }
+    .bulk-paste-chevron svg {
+      width: 14px;
+      height: 14px;
+      color: hsl(var(--muted-foreground));
+      flex-shrink: 0;
+      transition: transform 0.25s ease;
+    }
+    .bulk-paste[open] > summary .bulk-paste-chevron svg { transform: rotate(90deg); }
+    .bulk-paste-body { padding: 14px 16px 16px; }
+    .bulk-paste-help {
+      font-size: 12px;
+      line-height: 1.55;
+      color: hsl(var(--muted-foreground));
+      margin-bottom: 10px;
+    }
+    .bulk-paste-help code {
+      font-family: 'Geist Mono', monospace;
+      font-size: 11.5px;
+      background: hsl(var(--muted) / 0.7);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: hsl(var(--foreground));
+    }
+    #bulkPasteInput {
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px;
+      min-height: 120px;
+      line-height: 1.55;
+    }
+    .bulk-paste-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .bulk-paste-summary {
+      font-size: 12px;
+      color: hsl(var(--muted-foreground));
+    }
+    .bulk-paste-table-wrap {
+      margin-top: 14px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .bulk-paste-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .bulk-paste-table th {
+      text-align: left;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      color: hsl(var(--muted-foreground));
+      background: hsl(var(--muted) / 0.5);
+      border-bottom: 1px solid hsl(var(--border) / 0.55);
+    }
+    .bulk-paste-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid hsl(var(--border) / 0.55);
+      color: hsl(var(--foreground));
+      vertical-align: middle;
+    }
+    .bulk-paste-table tr:last-child td { border-bottom: none; }
+    .bulk-paste-table input[type="text"],
+    .bulk-paste-table select {
+      font-size: 12px;
+      padding: 5px 8px;
+      min-height: 0;
+    }
 
     /* footer note */
     .page-footer {
@@ -1239,9 +1365,7 @@
 <header class="app-header">
   <div class="app-header-inner">
     <div class="app-brand">
-      <span class="app-brand-mark" aria-hidden="true">
-        <img src="/weave-logo.svg" alt="Weave" />
-      </span>
+      <span class="app-brand-mark" aria-hidden="true">W</span>
       <div class="app-brand-text">
         <div class="app-brand-title">Weave</div>
         <div class="app-brand-sub">Survey Importer</div>
@@ -1378,9 +1502,18 @@
               <div class="tooltip-bubble">Choose the folder where the survey should be created. If folder placement cannot be verified, the survey may appear in the default or Personal folder. You can move it manually inside SurveySparrow.</div>
             </div>
           </div>
+          <input
+            type="text"
+            id="folderSearch"
+            placeholder="Search folders by name or ID…"
+            autocomplete="off"
+            disabled
+            style="margin-bottom:8px"
+          />
           <select id="folder" disabled>
             <option value="">— load folders first —</option>
           </select>
+          <div id="folderSearchEmpty" style="display:none;margin-top:6px;font-size:12px;color:hsl(var(--muted-foreground))">No matching folders found.</div>
         </div>
         <div style="padding-bottom:1px">
           <button class="btn-secondary" id="loadFolders" onclick="loadFolders()" type="button">Load Folders</button>
@@ -1498,19 +1631,48 @@
           <label for="variableType">Type</label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
-            <div class="tooltip-bubble">SurveySparrow variable type. String accepts any text value, Number accepts numeric values, Date accepts ISO dates.</div>
+            <div class="tooltip-bubble">UI type hint. SurveySparrow stores everything as String, Number, or Date — but Email / Phone / URL / Boolean help the bulk-paste parser infer the right type and read better in your saved list.</div>
           </div>
         </div>
         <select id="variableType">
           <option value="STRING" selected>String</option>
+          <option value="EMAIL">Email</option>
+          <option value="PHONE">Phone</option>
           <option value="NUMBER">Number</option>
           <option value="DATE">Date</option>
+          <option value="BOOLEAN">Boolean</option>
+          <option value="URL">URL</option>
         </select>
       </div>
       <button type="button" id="variableAddBtn" class="btn-secondary">Add</button>
     </div>
     <div id="variablesError" class="variables-error" role="alert"></div>
     <div id="variablesList" class="variables-list" style="display:none"></div>
+    <p class="variables-hint" style="margin-top:14px;margin-bottom:0">Use copied placeholders inside survey title, welcome text, question text, descriptions, options, or thank-you text.</p>
+
+    <!-- Bulk paste workflow — collapsed by default so the card stays compact. -->
+    <details class="bulk-paste">
+      <summary>
+        <span class="bulk-paste-title">Bulk paste variables</span>
+        <span class="bulk-paste-chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+        </span>
+      </summary>
+      <div class="bulk-paste-body">
+        <p class="bulk-paste-help">Paste one variable per line. Accepted formats: <code>customer_email</code>, <code>customer_name, Customer Name</code>, <code>customer_email, Email</code>, <code>customer_email, Customer Email, Email</code>, <code>ticket_id: Ticket ID</code>, <code>customer_email | Email</code>, <code>{{customer_name}}</code>. Multiple bare keys on one line separated by commas also work.</p>
+        <textarea id="bulkPasteInput" placeholder="customer_name, Customer Name
+customer_email, Customer Email, Email
+ticket_id: Ticket ID
+{{account_name}}"></textarea>
+        <div class="bulk-paste-actions">
+          <button type="button" id="bulkParseBtn" class="btn-secondary">Parse variables</button>
+          <button type="button" id="bulkSaveBtn" class="btn-primary" disabled>Save variables</button>
+          <span id="bulkPasteSummary" class="bulk-paste-summary"></span>
+        </div>
+        <div id="bulkPasteError" class="variables-error" role="alert"></div>
+        <div id="bulkPasteTable" class="bulk-paste-table-wrap" style="display:none"></div>
+      </div>
+    </details>
   </div>
 
   <div class="card card-organic" data-reveal>
@@ -1648,7 +1810,7 @@ Required: No"></textarea>
 </main>
 
 <footer class="page-footer">
-  <span class="ss-mark" aria-hidden="true"><img src="/surveysparrow-symbol.svg" alt="" /></span>
+  <span class="ss-mark" aria-hidden="true"><img src="/surveysparrow-symbol.svg" alt="" onerror="this.style.display='none'" /></span>
   Powered by the SurveySparrow API · Always review your draft before sharing.
 </footer>
 
@@ -1670,6 +1832,16 @@ Required: No"></textarea>
         <li>Click Validate Format.</li>
         <li>Create the survey.</li>
       </ol>
+      <p style="margin-top:14px;font-weight:600">Variables</p>
+      <p style="margin-top:4px">You can use placeholders like <code>{{customer_name}}</code>, <code>{{account_name}}</code>, <code>{{ticket_id}}</code>, or <code>{{customer_email}}</code> inside:</p>
+      <ul style="margin-top:6px;padding-left:20px">
+        <li>Survey Title</li>
+        <li>Welcome Title and Welcome Description</li>
+        <li>Question text and descriptions</li>
+        <li>Options</li>
+        <li>Thank You Message and Thank You Description</li>
+      </ul>
+      <p style="margin-top:8px">Use the <b>Variables</b> card to prepare and copy placeholders — paste them anywhere in the structured prompt.</p>
     </div>
     <div class="modal-actions">
       <button class="btn-modal-primary" id="copyGptBtn" onclick="copyGptPrompt()" type="button">Copy GPT Cleanup Prompt</button>
@@ -1970,8 +2142,63 @@ Required: No"></textarea>
      after the survey is created, if the list is non-empty, we POST it to
      /api/variables-batch and append the result to the debug log. */
   const VARIABLES_KEY = 'weave_variables';
-  // Match the SurveySparrow API surface — STRING / NUMBER / DATE only.
-  const ALLOWED_VARIABLE_TYPES = new Set(['STRING', 'NUMBER', 'DATE']);
+  /* UI-level type set. Richer than the SurveySparrow API surface (which only
+     accepts STRING/NUMBER/DATE) — we surface these for better UX and inference
+     and translate to the API set in apiVariableType() at send time. */
+  const UI_VARIABLE_TYPES = ['STRING', 'EMAIL', 'PHONE', 'NUMBER', 'DATE', 'BOOLEAN', 'URL'];
+  const ALLOWED_VARIABLE_TYPES = new Set(UI_VARIABLE_TYPES);
+  const VARIABLE_TYPE_LABELS = {
+    STRING: 'String', EMAIL: 'Email', PHONE: 'Phone', NUMBER: 'Number',
+    DATE: 'Date', BOOLEAN: 'Boolean', URL: 'URL',
+  };
+
+  /* Translate the rich UI type to the SurveySparrow API type. EMAIL / PHONE /
+     URL / BOOLEAN are all stored as STRING on SurveySparrow's side — the UI
+     type just helps the user pick something meaningful and drives default
+     inference during bulk paste. */
+  function apiVariableType(t) {
+    if (t === 'NUMBER') return 'NUMBER';
+    if (t === 'DATE')   return 'DATE';
+    return 'STRING';
+  }
+
+  function variableTypeLabel(t) { return VARIABLE_TYPE_LABELS[t] || t; }
+
+  /* Inference rules for bulk paste — used when no explicit type is given.
+     Matches on WHOLE underscore/dash-separated segments so "account_name"
+     doesn't pick up NUMBER from "count" inside "ac*count*", and
+     "linkedin_handle" doesn't pick up URL from "link". JS \b doesn't help
+     here because `_` counts as a word char, so a custom split is used. */
+  function inferVariableType(key) {
+    const k = (key || '').toLowerCase();
+    const segments = k.split(/[_\-\s]+/).filter(Boolean);
+    const has = (...words) => segments.some((s) => words.includes(s));
+    if (has('email'))                                                 return 'EMAIL';
+    if (has('phone', 'mobile'))                                       return 'PHONE';
+    if (has('date'))                                                  return 'DATE';
+    if (has('url', 'link', 'website'))                                return 'URL';
+    if (has('count', 'score', 'amount', 'number', 'qty', 'quantity')) return 'NUMBER';
+    if (/^is_|^has_/.test(k) || has('enabled'))                       return 'BOOLEAN';
+    return 'STRING';
+  }
+
+  /* Humanize a snake_case key into a display label: customer_email → Customer Email */
+  function humanizeKey(key) {
+    return String(key || '')
+      .replace(/[_\-]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  /* Normalize a raw token to a safe variable key: strip {{ }}, lowercase,
+     collapse spaces to underscores, drop anything that isn't a-z 0-9 or _ */
+  function normalizeVariableKey(raw) {
+    if (typeof raw !== 'string') return '';
+    let k = raw.trim().replace(/^\{\{\s*|\s*\}\}$/g, '').trim();
+    k = k.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]+/g, '');
+    return k.replace(/^_+|_+$/g, '');
+  }
 
   function loadVariables() {
     try {
@@ -1979,11 +2206,15 @@ Required: No"></textarea>
       if (!raw) return [];
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
-      // Filter out anything malformed in case localStorage was hand-edited.
-      return parsed.filter((v) =>
-        v && typeof v.name === 'string' && v.name.trim() &&
-        typeof v.type === 'string' && ALLOWED_VARIABLE_TYPES.has(v.type)
-      );
+      // Filter out anything malformed; normalize the shape to { name, label, type }.
+      return parsed
+        .filter((v) => v && typeof v.name === 'string' && v.name.trim() &&
+                      typeof v.type === 'string' && ALLOWED_VARIABLE_TYPES.has(v.type))
+        .map((v) => ({
+          name: v.name,
+          label: typeof v.label === 'string' && v.label.trim() ? v.label : humanizeKey(v.name),
+          type: v.type,
+        }));
     } catch (_) { return []; }
   }
 
@@ -1991,20 +2222,27 @@ Required: No"></textarea>
     try { localStorage.setItem(VARIABLES_KEY, JSON.stringify(vars)); } catch (_) {}
   }
 
-  function variableTypeLabel(t) {
-    return ({ STRING: 'String', NUMBER: 'Number', DATE: 'Date' })[t] || t;
-  }
-
   function setVariableError(msg) {
     const el = document.getElementById('variablesError');
     if (!el) return;
-    if (msg) {
-      el.textContent = msg;
-      el.classList.add('shown');
-    } else {
-      el.textContent = '';
-      el.classList.remove('shown');
-    }
+    if (msg) { el.textContent = msg; el.classList.add('shown'); }
+    else     { el.textContent = ''; el.classList.remove('shown'); }
+  }
+
+  /* Generic flash-feedback for copy buttons: change to "Copied", then revert. */
+  function flashCopied(btn) {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = 'Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1200);
+  }
+
+  function copyPlaceholder(key, btn) {
+    const text = `{{${key}}}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => prompt('Copy:', text));
+    } else { prompt('Copy:', text); }
   }
 
   function renderVariablesList() {
@@ -2021,9 +2259,11 @@ Required: No"></textarea>
     const rows = vars.map((v, i) => `
       <tr>
         <td><span class="variables-name">${escHtml(v.name)}</span></td>
+        <td style="font-size:12px;color:hsl(var(--muted-foreground))">${escHtml(v.label)}</td>
         <td><span class="variables-type">${escHtml(variableTypeLabel(v.type))}</span></td>
         <td style="text-align:right;width:1%;white-space:nowrap">
-          <button type="button" class="variables-remove" data-idx="${i}" aria-label="Remove variable ${escHtml(v.name)}">×</button>
+          <button type="button" class="variables-copy" data-key="${escHtml(v.name)}">Copy {{}}</button>
+          <button type="button" class="variables-remove" data-idx="${i}" aria-label="Remove variable ${escHtml(v.name)}" style="margin-left:6px">×</button>
         </td>
       </tr>`).join('');
     list.innerHTML = `<table class="variables-table"><tbody>${rows}</tbody></table>`;
@@ -2039,18 +2279,22 @@ Required: No"></textarea>
         }
       });
     });
+    list.querySelectorAll('.variables-copy').forEach((btn) => {
+      btn.addEventListener('click', () => copyPlaceholder(btn.getAttribute('data-key'), btn));
+    });
   }
 
   function addVariable() {
     const nameEl = document.getElementById('variableName');
     const typeEl = document.getElementById('variableType');
     if (!nameEl || !typeEl) return;
-    const name = nameEl.value.trim();
+    const rawName = nameEl.value.trim();
+    const name = normalizeVariableKey(rawName);
     const type = typeEl.value;
     setVariableError('');
 
     if (!name) {
-      setVariableError('Name is required.');
+      setVariableError(rawName ? 'Name must contain letters or numbers.' : 'Name is required.');
       nameEl.focus();
       return;
     }
@@ -2059,7 +2303,7 @@ Required: No"></textarea>
       return;
     }
     if (!ALLOWED_VARIABLE_TYPES.has(type)) {
-      setVariableError('Pick a type: Text, Number, or Date.');
+      setVariableError('Pick a type.');
       return;
     }
     const existing = loadVariables();
@@ -2073,7 +2317,7 @@ Required: No"></textarea>
       setVariableError('You can attach at most 50 variables per survey (SurveySparrow limit).');
       return;
     }
-    existing.push({ name, type });
+    existing.push({ name, label: humanizeKey(name), type });
     saveVariables(existing);
     renderVariablesList();
     nameEl.value = '';
@@ -2089,6 +2333,214 @@ Required: No"></textarea>
     renderVariablesList();
   }
 
+  /* ─────────── Bulk paste subsection ─────────── */
+  /* Holds the parsed-but-not-yet-saved variable buffer between Parse → Save. */
+  let _bulkParsed = [];
+
+  function setBulkError(msg) {
+    const el = document.getElementById('bulkPasteError');
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.classList.add('shown'); }
+    else     { el.textContent = ''; el.classList.remove('shown'); }
+  }
+
+  /* Parser. Splits the textarea by newlines, then for each line:
+       - {{key}} → strip braces
+       - "k | v" / "k - v" / "k: v" → key + label (right side)
+       - "k, label, Type" → key + label + type (when 3+ parts AND last part is a type)
+       - "k1, k2, k3" (all bare keys) → multiple separate variables
+       - bare token → single key, no label.
+     Labels and types are then defaulted (humanize / infer) for any rows that
+     didn't carry them. */
+  function parseBulkVariables(text) {
+    if (!text || !text.trim()) return [];
+    const out = [];
+    const TYPE_BY_LABEL = {};
+    UI_VARIABLE_TYPES.forEach((t) => { TYPE_BY_LABEL[VARIABLE_TYPE_LABELS[t].toLowerCase()] = t; });
+
+    const looksLikeBareKey = (s) => /^\{?\{?[a-zA-Z][\w\-]*\}?\}?$/.test((s || '').trim());
+
+    const pushOne = (rawKey, rawLabel, rawType) => {
+      const name = normalizeVariableKey(rawKey);
+      if (!name) return;
+      let type;
+      if (rawType) {
+        const t = String(rawType).trim().toLowerCase();
+        type = TYPE_BY_LABEL[t] || (ALLOWED_VARIABLE_TYPES.has(t.toUpperCase()) ? t.toUpperCase() : null);
+      }
+      if (!type) type = inferVariableType(name);
+      const label = rawLabel && String(rawLabel).trim() ? String(rawLabel).trim() : humanizeKey(name);
+      out.push({ name, label, type });
+    };
+
+    text.split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      // 1. "k | label" / "k - label" / "k: label" — colon, pipe, or dash-with-spaces.
+      const splitRe = /\s+\|\s+|\s+-\s+|\s*\|\s*|\s*:\s+/;
+      const sepMatch = trimmed.match(splitRe);
+      if (sepMatch && !trimmed.includes(',')) {
+        const idx = trimmed.indexOf(sepMatch[0]);
+        const key = trimmed.slice(0, idx).trim();
+        const rest = trimmed.slice(idx + sepMatch[0].length).trim();
+        // Could be "k | label | Type" too — split rest by the same separator once.
+        const restParts = rest.split(splitRe).map((p) => p.trim()).filter(Boolean);
+        pushOne(key, restParts[0], restParts[1]);
+        return;
+      }
+
+      // 2. Comma-separated. Three interpretations, in priority order:
+      //    (a) "key, label, Type" — exactly 3 parts and last part is a known type
+      //    (b) "key, Label With Spaces" — 2 parts and second has a space or
+      //        isn't a bare key (so clearly a display label, not another key)
+      //    (c) "k1, k2, k3" — all parts look like bare keys → multi-key shorthand
+      //    (d) fallback: treat as (key, label, type) anyway
+      if (trimmed.includes(',')) {
+        const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+        const lastLower = (parts[parts.length - 1] || '').toLowerCase();
+        const lastIsKnownType = !!TYPE_BY_LABEL[lastLower] ||
+                                ALLOWED_VARIABLE_TYPES.has(lastLower.toUpperCase());
+        if (parts.length === 3 && lastIsKnownType) {
+          pushOne(parts[0], parts[1], parts[2]);
+          return;
+        }
+        if (parts.length === 2 && (!looksLikeBareKey(parts[1]) || /\s/.test(parts[1]))) {
+          pushOne(parts[0], parts[1]);
+          return;
+        }
+        if (parts.length >= 2 && parts.every(looksLikeBareKey)) {
+          parts.forEach((p) => pushOne(p));
+          return;
+        }
+        pushOne(parts[0], parts[1], parts[2]);
+        return;
+      }
+
+      // 3. Bare line — single key.
+      pushOne(trimmed);
+    });
+
+    // Dedupe by name, keeping first occurrence.
+    const seen = new Set();
+    return out.filter((v) => {
+      if (seen.has(v.name)) return false;
+      seen.add(v.name);
+      return true;
+    });
+  }
+
+  function renderBulkParsedTable() {
+    const wrap = document.getElementById('bulkPasteTable');
+    const saveBtn = document.getElementById('bulkSaveBtn');
+    const summary = document.getElementById('bulkPasteSummary');
+    if (!wrap || !saveBtn || !summary) return;
+    if (_bulkParsed.length === 0) {
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+      saveBtn.disabled = true;
+      summary.textContent = '';
+      return;
+    }
+    const typeOpts = UI_VARIABLE_TYPES.map((t) =>
+      `<option value="${t}">${escHtml(variableTypeLabel(t))}</option>`).join('');
+    const rows = _bulkParsed.map((v, i) => `
+      <tr>
+        <td><span class="variables-name">${escHtml(v.name)}</span></td>
+        <td><input type="text" class="bulk-label" data-idx="${i}" value="${escHtml(v.label)}" autocomplete="off" /></td>
+        <td>
+          <select class="bulk-type" data-idx="${i}">${typeOpts}</select>
+        </td>
+        <td style="text-align:right;width:1%;white-space:nowrap">
+          <button type="button" class="variables-copy bulk-copy" data-key="${escHtml(v.name)}">Copy {{}}</button>
+          <button type="button" class="variables-remove bulk-remove" data-idx="${i}" aria-label="Remove ${escHtml(v.name)}" style="margin-left:6px">×</button>
+        </td>
+      </tr>`).join('');
+    wrap.innerHTML = `<table class="bulk-paste-table">
+      <thead><tr><th>Key</th><th>Display label</th><th>Type</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+    wrap.style.display = 'block';
+    saveBtn.disabled = false;
+    summary.textContent = `${_bulkParsed.length} variable${_bulkParsed.length !== 1 ? 's' : ''} parsed.`;
+
+    // Sync selected <select> values (default to inferred/parsed type).
+    wrap.querySelectorAll('select.bulk-type').forEach((sel) => {
+      const idx = Number(sel.getAttribute('data-idx'));
+      if (Number.isFinite(idx)) sel.value = _bulkParsed[idx].type;
+    });
+    // Wire row edits.
+    wrap.querySelectorAll('input.bulk-label').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const idx = Number(inp.getAttribute('data-idx'));
+        if (Number.isFinite(idx)) _bulkParsed[idx].label = inp.value;
+      });
+    });
+    wrap.querySelectorAll('select.bulk-type').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const idx = Number(sel.getAttribute('data-idx'));
+        if (Number.isFinite(idx) && ALLOWED_VARIABLE_TYPES.has(sel.value)) {
+          _bulkParsed[idx].type = sel.value;
+        }
+      });
+    });
+    wrap.querySelectorAll('.bulk-copy').forEach((btn) => {
+      btn.addEventListener('click', () => copyPlaceholder(btn.getAttribute('data-key'), btn));
+    });
+    wrap.querySelectorAll('.bulk-remove').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.getAttribute('data-idx'));
+        if (Number.isFinite(idx)) {
+          _bulkParsed.splice(idx, 1);
+          renderBulkParsedTable();
+        }
+      });
+    });
+  }
+
+  function parseBulkClicked() {
+    setBulkError('');
+    const ta = document.getElementById('bulkPasteInput');
+    if (!ta) return;
+    const parsed = parseBulkVariables(ta.value);
+    if (parsed.length === 0) {
+      _bulkParsed = [];
+      renderBulkParsedTable();
+      setBulkError('No variables found in pasted text. Make sure each variable has a recognizable key.');
+      return;
+    }
+    _bulkParsed = parsed;
+    renderBulkParsedTable();
+  }
+
+  function saveBulkClicked() {
+    if (_bulkParsed.length === 0) return;
+    setBulkError('');
+    const existing = loadVariables();
+    const seen = new Set(existing.map((v) => v.name.toLowerCase()));
+    let added = 0;
+    let skipped = 0;
+    _bulkParsed.forEach((v) => {
+      if (seen.has(v.name.toLowerCase())) { skipped++; return; }
+      if (existing.length + added >= 50) { skipped++; return; }
+      existing.push({ name: v.name, label: v.label || humanizeKey(v.name), type: v.type });
+      seen.add(v.name.toLowerCase());
+      added++;
+    });
+    saveVariables(existing);
+    renderVariablesList();
+    _bulkParsed = [];
+    renderBulkParsedTable();
+    const ta = document.getElementById('bulkPasteInput');
+    if (ta) ta.value = '';
+    const summary = document.getElementById('bulkPasteSummary');
+    if (summary) {
+      const parts = [`Saved ${added} variable${added !== 1 ? 's' : ''}.`];
+      if (skipped > 0) parts.push(`Skipped ${skipped} (duplicate or limit reached).`);
+      summary.textContent = parts.join(' ');
+    }
+  }
+
   function initVariablesCard() {
     const addBtn = document.getElementById('variableAddBtn');
     const clearBtn = document.getElementById('variablesClearBtn');
@@ -2098,7 +2550,55 @@ Required: No"></textarea>
     if (nameEl) nameEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); addVariable(); }
     });
+    const parseBtn = document.getElementById('bulkParseBtn');
+    const saveBtn  = document.getElementById('bulkSaveBtn');
+    if (parseBtn) parseBtn.addEventListener('click', parseBulkClicked);
+    if (saveBtn)  saveBtn.addEventListener('click', saveBulkClicked);
     renderVariablesList();
+  }
+
+  /* Client-side filter for the folder dropdown. Folders are still loaded by
+     the existing Load Folders → /api/folders flow; we just hide non-matching
+     <option> nodes here. The final value the user picks goes through the
+     unchanged createSurvey() folder-id pipeline. */
+  function filterFolderOptions() {
+    const sel = document.getElementById('folder');
+    const search = document.getElementById('folderSearch');
+    const empty = document.getElementById('folderSearchEmpty');
+    if (!sel || !search) return;
+    const all = window._allFolderOptions || [];
+    if (all.length === 0) return; // nothing loaded yet — nothing to filter
+    const q = search.value.trim().toLowerCase();
+
+    // Remember the user's selected value so we can restore it if it still matches.
+    const previous = sel.value;
+    sel.innerHTML = '';
+    let matchCount = 0;
+    all.forEach(opt => {
+      if (!q || opt.haystack.includes(q)) {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        sel.appendChild(o);
+        matchCount++;
+      }
+    });
+    if (matchCount === 0) {
+      sel.innerHTML = '<option value="">— no matches —</option>';
+      if (empty) empty.style.display = 'block';
+    } else {
+      if (empty) empty.style.display = 'none';
+      // Keep the previously-selected folder if it's still in the filtered set.
+      if (previous && [...sel.options].some(o => o.value === previous)) {
+        sel.value = previous;
+      }
+    }
+  }
+
+  function initFolderSearch() {
+    const search = document.getElementById('folderSearch');
+    if (!search) return;
+    search.addEventListener('input', filterFolderOptions);
   }
 
   /* Called from createSurvey() after the survey is created. Posts the saved
@@ -2109,13 +2609,21 @@ Required: No"></textarea>
     const vars = loadVariables();
     if (!data || !data.surveyId || vars.length === 0) return '';
 
+    // Translate UI types → SurveySparrow API types (STRING / NUMBER / DATE).
+    // Send the user-supplied label as `label`, the key as `name`.
+    const apiVars = vars.map((v) => ({
+      name: v.name,
+      label: v.label || humanizeKey(v.name),
+      type: apiVariableType(v.type),
+    }));
+
     const region = getRegion();
     const apiKey = getApiKey();
     try {
       const res = await fetch(`${BASE}/variables-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ region, apiKey, surveyId: data.surveyId, variables: vars }),
+        body: JSON.stringify({ region, apiKey, surveyId: data.surveyId, variables: apiVars }),
       });
       const vData = await res.json().catch(() => ({}));
       const extra = Array.isArray(vData.debugLog) ? vData.debugLog : [];
@@ -2134,7 +2642,7 @@ Required: No"></textarea>
         step: 'Create Variables (batch)',
         endpoint: 'POST /v3/variables/batch',
         status: 'network error',
-        payload: { survey_id: data.surveyId, variables: vars },
+        payload: { survey_id: data.surveyId, variables: apiVars },
         response: null,
         error: err && err.message ? err.message : String(err),
       }];
@@ -2199,9 +2707,14 @@ Required: No"></textarea>
         sel.innerHTML = '<option value="">— connect to load folders —</option>';
         sel.disabled = true;
       }
+      const search = document.getElementById('folderSearch');
+      if (search) { search.value = ''; search.disabled = true; }
+      const empty = document.getElementById('folderSearchEmpty');
+      if (empty) empty.style.display = 'none';
       const fd = document.getElementById('folderDebug');
       if (fd) { fd.style.display = 'none'; fd.innerHTML = ''; }
       window._loadedFolders = {};
+      window._allFolderOptions = [];
     }
   }
 
@@ -2263,6 +2776,10 @@ Required: No"></textarea>
           };
         });
 
+        // Build the option list AND cache a flat array we can filter on. Each
+        // entry stores the dropdownValue, the display label, and the name/id
+        // search corpus so we can filter by either.
+        window._allFolderOptions = [];
         normalized.forEach(nf => {
           const opt = document.createElement('option');
           opt.value = nf.dropdownValue;
@@ -2275,8 +2792,27 @@ Required: No"></textarea>
           opt.textContent = label;
           sel.appendChild(opt);
           window._loadedFolders[nf.dropdownValue] = nf;
+          window._allFolderOptions.push({
+            value: nf.dropdownValue,
+            label,
+            // Lowercased haystack for case-insensitive matching: name, dropdown
+            // value, and the legacy id (if any).
+            haystack: [
+              (nf.label || '').toLowerCase(),
+              String(nf.dropdownValue).toLowerCase(),
+              nf.legacy_folder_id ? String(nf.legacy_folder_id).toLowerCase() : '',
+              nf.id ? String(nf.id).toLowerCase() : '',
+            ].join(' '),
+          });
         });
         sel.disabled = false;
+
+        // Enable + reset the folder search input now that we have something to
+        // filter against. Wiring is set once in initFolderSearch().
+        const searchEl = document.getElementById('folderSearch');
+        if (searchEl) { searchEl.disabled = false; searchEl.value = ''; }
+        const emptyEl = document.getElementById('folderSearchEmpty');
+        if (emptyEl) emptyEl.style.display = 'none';
 
         const legacyWarnings = normalized.filter(nf => nf.usedLegacyFolderId);
         const hasParentId = normalized.some(nf => nf.parent_id != null);
@@ -2878,6 +3414,12 @@ Show if: Q[number] is less than [value]
 Show if: Q[number] is greater than [value]
 Ignore complex branching.
 10. Do not include welcome screens or thank-you screens unless requested. If requested, use Welcome Title, Welcome Description, Thank You Message, and Thank You Description.
+
+Variables (placeholders):
+- If the source content already contains placeholders like {{customer_name}}, {{ticket_id}}, {{account_name}}, {{customer_email}}, or any other {{snake_case_token}}, PRESERVE them exactly as written. Do not rename, expand, or remove them.
+- Placeholders are valid inside Survey Title, Welcome Title, Welcome Description, question text, Description, Options, Thank You Message, and Thank You Description.
+- If the source mentions a known customer field by name (e.g. "the customer's name", "their email", "this ticket"), you MAY introduce a placeholder like {{customer_name}} only when it clearly improves the survey (personalization). Do not invent more than 3-4 new placeholders, and never invent placeholders for fields that are not clearly referenced in the source.
+- Use snake_case for placeholder keys: {{customer_name}} (not {{customerName}} or {{Customer Name}}).
 
 NPS / CES / CSAT feedback follow-ups (position-strict rule):
 1. SurveySparrow allows AT MOST ONE NPSFeedback (or CESFeedback / CSATFeedback) per survey, and it MUST sit directly after the corresponding score question. A second one, or one placed anywhere else, will be rejected by the API with "feedback question already exists for survey".
@@ -3682,6 +4224,7 @@ Now convert the uploaded document or pasted content into this format.`;
       syncThemeMenu();
       initTypeSupportCount();
       initVariablesCard();
+      initFolderSearch();
     }
   })();
 </script>
