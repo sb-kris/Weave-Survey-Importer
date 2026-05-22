@@ -66,7 +66,9 @@ router.post("/folders", async (req, res) => {
       const value = surveyFolderId ?? id ?? legacyFolderId;
       const usedLegacyFolderIdAsFallback = !surveyFolderId && !id && legacyFolderId !== undefined;
       if (usedLegacyFolderIdAsFallback) {
-        req.log.warn({ legacyFolderId }, "folder has only the legacy folder ID — survey_folder_id and id are absent");
+        // Optional chaining so this is a no-op when pino-http isn't mounted
+        // (e.g. in the minimal Netlify Function build that skips logging).
+        req.log?.warn?.({ legacyFolderId }, "folder has only the legacy folder ID — survey_folder_id and id are absent");
       }
       return {
         id,
@@ -412,7 +414,9 @@ router.post("/create-survey", async (req, res) => {
         warnings.push(folderMismatch);
       }
     } else {
-      req.log.warn({ surveyId }, "create-survey response did not include survey_folder_id");
+      // See comment above — optional chaining keeps this safe in the
+      // pino-free serverless build.
+      req.log?.warn?.({ surveyId }, "create-survey response did not include survey_folder_id");
     }
   }
 
