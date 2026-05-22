@@ -2082,7 +2082,7 @@ Required: No"></textarea>
 
       <div class="llm-tab-panel" id="llmTabUpload" role="tabpanel" style="display:none">
         <input type="file" id="llmFileInput" accept=".txt,.csv,.xlsx,.docx,.pdf" />
-        <div class="llm-file-hint" id="llmFileHint">Supported: .txt, .csv, .xlsx, .docx. PDF: copy the text and paste it into the "Paste text" tab instead. Max 5 MB; max 30,000 characters of extracted text are sent to the provider.</div>
+        <div class="llm-file-hint" id="llmFileHint">Supported: .txt, .csv, .xlsx, .docx, .pdf. Scanned-image PDFs (e.g. phone-scanned docs) won't extract — use the original source. Max 5 MB; max 30,000 characters of extracted text are sent to the provider.</div>
         <div class="llm-file-hint" id="llmFileStatus" style="color:hsl(var(--foreground));margin-top:8px"></div>
       </div>
 
@@ -4162,9 +4162,46 @@ Now convert the uploaded document or pasted content into this format.`;
       return (result.value || '').trim();
     }
     if (ext === 'pdf') {
-      throw new Error('PDF text extraction isn\'t supported here yet — open the PDF, copy the text, and paste it into the "Paste text" tab.');
+      // pdf.js is loaded lazily — it's ~1 MB and only worth shipping when
+      // the user actually picks a PDF. pdf.js v4 ignores disableWorker:true
+      // and still requires a workerSrc, so point it at the matching worker
+      // on esm.sh. Same CDN, same version, no separate file to host.
+      const PDFJS_VERSION = '4.10.38';
+      const pdfjs = await import(`https://esm.sh/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`);
+      if (pdfjs.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
+      }
+      const buf = await file.arrayBuffer();
+      const doc = await pdfjs.getDocument({ data: buf, isEvalSupported: false }).promise;
+      const pages = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        // Each item.str is one positioned text run. Concatenating with
+        // spaces between items and newlines between lines produces output
+        // that's noisy on multi-column layouts but good enough for the
+        // LLM to clean into structure.
+        const lineMap = new Map();
+        for (const item of content.items) {
+          if (!item || typeof item.str !== 'string') continue;
+          const y = item.transform ? Math.round(item.transform[5]) : 0;
+          const arr = lineMap.get(y) || [];
+          arr.push(item.str);
+          lineMap.set(y, arr);
+        }
+        // Sort lines top→bottom (PDF Y axis runs from the bottom up).
+        const sortedYs = [...lineMap.keys()].sort((a, b) => b - a);
+        const text = sortedYs.map(y => lineMap.get(y).join(' ').replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+        pages.push(text);
+        // Release page resources early — large PDFs accumulate otherwise.
+        page.cleanup();
+      }
+      await doc.cleanup();
+      const out = pages.join('\n\n').trim();
+      if (!out) throw new Error('No text could be extracted from this PDF. If it\'s a scanned document, the text lives inside image data — open the original source (Word, Google Doc) or copy the text manually into the "Paste text" tab.');
+      return out;
     }
-    throw new Error(`Unsupported file type: .${ext}. Use .txt, .csv, .xlsx, or .docx.`);
+    throw new Error(`Unsupported file type: .${ext}. Use .txt, .csv, .xlsx, .docx, or .pdf.`);
   }
 
   async function onLlmFileChange(ev) {
