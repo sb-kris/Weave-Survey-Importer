@@ -12,10 +12,24 @@
   command = "cp index.html public/index.html"
   publish = "public"
 
+[build.environment]
+  # package.json declares engines.node >= 20. Netlify Functions default to
+  # Node 18, which makes Express 5 / pino-http 10 misbehave at runtime.
+  # Pin to 20 so the function bundle runs on the same engine the project
+  # was developed against.
+  NODE_VERSION = "20"
+
 [functions]
   # esbuild bundles the TS function + its imports (src/app.ts, the route
   # file, helpers) into a single deployable Lambda artifact.
   node_bundler = "esbuild"
+  # pino uses dynamic require() + worker_threads to load its transports
+  # and core worker files. Inlining pino into the function bundle breaks
+  # those lookups, which manifests as 502 Bad Gateway from Netlify
+  # because the function crashes during cold start. Keep pino external so
+  # Netlify ships it in the function's node_modules and `require()` resolves
+  # normally at runtime. thread-stream is pino's worker IPC helper.
+  external_node_modules = ["pino", "pino-http", "pino-pretty", "thread-stream"]
 
 # /api/* must hit the function BEFORE the SPA fallback below; redirect rules
 # are evaluated top-down and `force = true` makes this proxy win even when
