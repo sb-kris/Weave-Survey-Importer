@@ -2755,10 +2755,15 @@ Required: No"></textarea>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ region: getRegion(), apiKey })
       });
-      const data = await res.json();
+      // Defensive parse — if the function crashes and returns a non-JSON
+      // body (e.g. an HTML gateway error page), we still want to surface
+      // a useful message instead of crashing the handler.
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
 
       if (!res.ok) {
-        alert('Error loading folders: ' + (data.error || res.statusText));
+        const detail = data.error || res.statusText || 'no error message returned';
+        alert(`Error loading folders (HTTP ${res.status}): ${detail}`);
         playErrorChime();
         setConnected('error');
         return;
