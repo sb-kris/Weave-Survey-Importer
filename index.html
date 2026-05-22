@@ -920,6 +920,168 @@
     }
     .btn-modal-secondary:hover { background: hsl(var(--accent)); }
 
+    /* ─────────── Helper banner secondary button + LLM formatter modal ─────────── */
+    /* Group the two helper-banner buttons together so they stack into one
+       column on narrow viewports without bunching against the helper text. */
+    .helper-banner-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .btn-helper-secondary {
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 8px 14px;
+      background: hsl(var(--background));
+      color: hsl(var(--primary));
+      border: 1px solid hsl(var(--primary) / 0.5);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .btn-helper-secondary:hover {
+      background: hsl(var(--primary) / 0.1);
+      border-color: hsl(var(--primary));
+    }
+    /* LLM modal — same chrome as the existing Formatting Helper, just a bit
+       wider to fit the form + output preview. */
+    #llmFormatModal .modal {
+      max-width: 720px;
+      width: calc(100% - 32px);
+    }
+    .llm-modal-intro {
+      font-size: 13px;
+      color: hsl(var(--muted-foreground));
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .llm-modal-warn {
+      font-size: 11.5px;
+      color: hsl(var(--muted-foreground));
+      background: hsl(var(--warning) / 0.06);
+      border: 1px solid hsl(var(--warning) / 0.25);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin: 10px 0;
+      line-height: 1.5;
+    }
+    .llm-modal-grid {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 540px) {
+      .llm-modal-grid { grid-template-columns: 1fr; }
+    }
+    .llm-modal-grid .field { width: 100%; }
+    #llmApiKey { font-family: 'Geist Mono', monospace; }
+    .llm-context-row {
+      font-size: 12.5px;
+      color: hsl(var(--foreground));
+      margin: 10px 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .llm-tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid hsl(var(--border));
+      margin-top: 14px;
+    }
+    .llm-tab {
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 7px 14px;
+      background: transparent;
+      color: hsl(var(--muted-foreground));
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .llm-tab:hover { color: hsl(var(--foreground)); }
+    .llm-tab.active {
+      color: hsl(var(--primary));
+      border-bottom-color: hsl(var(--primary));
+    }
+    .llm-tab-panel { padding-top: 12px; }
+    #llmRawInput {
+      width: 100%;
+      min-height: 140px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    #llmFileInput {
+      width: 100%;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    .llm-file-hint {
+      font-size: 11.5px;
+      color: hsl(var(--muted-foreground));
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    .llm-options {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      background: hsl(var(--muted) / 0.3);
+    }
+    .llm-options-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: hsl(var(--muted-foreground));
+      margin-bottom: 6px;
+    }
+    .llm-options label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: hsl(var(--foreground));
+      cursor: pointer;
+      margin: 6px 0;
+    }
+    .llm-options input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: hsl(var(--primary));
+      flex-shrink: 0;
+    }
+    .llm-output {
+      margin-top: 14px;
+    }
+    .llm-output-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: hsl(var(--muted-foreground));
+      margin-bottom: 6px;
+    }
+    #llmFormattedOutput {
+      width: 100%;
+      min-height: 200px;
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .llm-loading {
+      font-size: 12.5px;
+      color: hsl(var(--muted-foreground));
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     /* ─────────── Validate banner ─────────── */
     .validate-banner {
       margin-top: 10px;
@@ -1703,8 +1865,11 @@ ticket_id: Ticket ID
     </div>
 
     <div class="helper-banner">
-      <span class="helper-banner-text">Have a PDF, Word document, CSV, XLSX, rough notes, or a broad survey idea? Use the Formatting Helper to convert it into the exact structure this app accepts.</span>
-      <button class="btn-helper pulse" id="openHelperBtn" onclick="openFormattingHelper()" type="button">Open Formatting Helper</button>
+      <span class="helper-banner-text">Have a PDF, Word document, CSV, XLSX, rough notes, or a broad survey idea? Use the Formatting Helper to convert it into the exact structure this app accepts — copy the prompt and run it in ChatGPT or Claude. Or bring your own LLM key and format it right here.</span>
+      <div class="helper-banner-actions">
+        <button class="btn-helper-secondary" id="openLlmFormatBtn" onclick="openLlmFormatter()" type="button">Format using LLM</button>
+        <button class="btn-helper pulse" id="openHelperBtn" onclick="openFormattingHelper()" type="button">Open Formatting Helper</button>
+      </div>
     </div>
 
     <section class="type-support-details" id="typeSupport">
@@ -1866,6 +2031,82 @@ Required: No"></textarea>
       <a class="btn-modal-secondary" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
       <a class="btn-modal-secondary" href="https://claude.ai" target="_blank" rel="noopener noreferrer">Open Claude</a>
       <button class="btn-modal-secondary" onclick="closeFormattingHelper()" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- LLM formatter modal: BYO-key in-app formatting. Separate from the
+     existing Formatting Helper above — both flows coexist. -->
+<div class="modal-backdrop" id="llmFormatModal" onclick="handleLlmModalBackdropClick(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="llmModalTitle">
+    <h3 id="llmModalTitle">Format using LLM</h3>
+    <div class="modal-body">
+      <p class="llm-modal-intro">Use your own OpenAI, Anthropic, or Google Gemini API key to format rough notes or files into the supported structured prompt format. Your key is used only for this request and is never stored on the server.</p>
+
+      <div class="llm-modal-grid">
+        <div class="field">
+          <label for="llmProvider">Provider</label>
+          <select id="llmProvider">
+            <option value="openai" selected>OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="gemini">Google Gemini</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="llmApiKey">API key</label>
+          <input type="password" id="llmApiKey" placeholder="OpenAI API key" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="checkbox-row" style="margin-top:8px">
+        <input type="checkbox" id="llmRememberKey" />
+        <label for="llmRememberKey">Remember this key in this browser</label>
+      </div>
+
+      <p class="llm-modal-warn"><b>Privacy:</b> LLM formatting sends your pasted or extracted text to the selected provider using the API key you provide. Don't include sensitive personal data unless your organization allows it. Your SurveySparrow API key is separate from your LLM API key.</p>
+
+      <div class="llm-context-row">
+        Survey type:&nbsp;<b id="llmSurveyTypeDisplay">ClassicForm</b>
+        <span style="color:hsl(var(--muted-foreground));font-size:11px">(from Survey Settings)</span>
+      </div>
+
+      <div class="llm-tabs" role="tablist">
+        <button type="button" class="llm-tab active" data-tab="paste" role="tab" aria-selected="true">Paste text</button>
+        <button type="button" class="llm-tab" data-tab="upload" role="tab" aria-selected="false">Upload file</button>
+      </div>
+
+      <div class="llm-tab-panel" id="llmTabPaste" role="tabpanel">
+        <textarea id="llmRawInput" placeholder="Paste a rough questionnaire, notes, survey brief, or copied content here…"></textarea>
+        <div class="llm-file-hint" id="llmRawInputCount">0 characters</div>
+      </div>
+
+      <div class="llm-tab-panel" id="llmTabUpload" role="tabpanel" style="display:none">
+        <input type="file" id="llmFileInput" accept=".txt,.csv,.xlsx,.docx,.pdf" />
+        <div class="llm-file-hint" id="llmFileHint">Supported: .txt, .csv, .xlsx, .docx. PDF: copy the text and paste it into the "Paste text" tab instead. Max 5 MB; max 30,000 characters of extracted text are sent to the provider.</div>
+        <div class="llm-file-hint" id="llmFileStatus" style="color:hsl(var(--foreground));margin-top:8px"></div>
+      </div>
+
+      <div class="llm-options">
+        <div class="llm-options-label">Formatting options</div>
+        <label><input type="checkbox" class="llm-opt" data-opt="preserveWording" checked>Preserve existing question wording where possible</label>
+        <label><input type="checkbox" class="llm-opt" data-opt="removeDuplicates" checked>Remove duplicate questions</label>
+        <label><input type="checkbox" class="llm-opt" data-opt="includeSections" checked>Include sections if obvious</label>
+        <label><input type="checkbox" class="llm-opt" data-opt="includeWelcomeThankYou" checked>Include welcome and thank-you text if present</label>
+        <label><input type="checkbox" class="llm-opt" data-opt="preserveVariables" checked>Preserve placeholders like {{customer_name}}</label>
+      </div>
+
+      <div id="llmError" style="display:none;margin-top:10px;padding:9px 12px;background:hsl(var(--destructive) / 0.08);border:1px solid hsl(var(--destructive) / 0.3);border-radius:7px;font-size:12.5px;color:hsl(var(--destructive));line-height:1.5"></div>
+
+      <div class="llm-output" id="llmOutputSection" style="display:none">
+        <div class="llm-output-label">Formatted output (preview)</div>
+        <textarea id="llmFormattedOutput" readonly></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-primary" id="llmFormatBtn" type="button" onclick="doLlmFormat()">Format with LLM</button>
+      <button class="btn-modal-secondary" id="llmInsertBtn" type="button" onclick="insertLlmIntoPrompt()" disabled>Insert into Structured Prompt</button>
+      <button class="btn-modal-secondary" id="llmCopyBtn" type="button" onclick="copyLlmOutput()" disabled>Copy formatted output</button>
+      <button class="btn-modal-secondary" type="button" onclick="closeLlmFormatter()">Close</button>
     </div>
   </div>
 </div>
@@ -3777,8 +4018,290 @@ Now convert the uploaded document or pasted content into this format.`;
   }
 
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeFormattingHelper();
+    if (e.key === 'Escape') {
+      closeFormattingHelper();
+      closeLlmFormatter();
+    }
   });
+
+  /* ─────────────────────── BYO-LLM formatter ───────────────────────
+     Optional in-app formatter. The user supplies their own key for one of
+     three providers; we POST it to /api/format-with-llm which redacts the
+     key from any error string. The key is opt-in to localStorage under
+     weave_llm_keys (default OFF) — never persisted server-side. */
+  const LLM_KEYS_STORAGE = 'weave_llm_keys';
+  const LLM_PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini' };
+  let _llmFormatted = '';   // last successful output (kept across re-opens)
+  let _llmExtractedText = ''; // text extracted from an uploaded file
+
+  function openLlmFormatter() {
+    // Sync the survey-type display from the main form.
+    const t = document.getElementById('surveyType')?.value || 'ClassicForm';
+    const display = document.getElementById('llmSurveyTypeDisplay');
+    if (display) display.textContent = t;
+    // Restore remembered key for the selected provider, if any.
+    refreshRememberedKeyForProvider();
+    // Show modal.
+    document.getElementById('llmFormatModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setLlmError('');
+    updateRawInputCount();
+  }
+
+  function closeLlmFormatter() {
+    const modal = document.getElementById('llmFormatModal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    // If the user opted NOT to remember the key, scrub it from the field so
+    // it doesn't sit in the DOM/memory longer than necessary.
+    const rememberEl = document.getElementById('llmRememberKey');
+    if (rememberEl && !rememberEl.checked) {
+      const keyEl = document.getElementById('llmApiKey');
+      if (keyEl) keyEl.value = '';
+    }
+  }
+
+  function handleLlmModalBackdropClick(e) {
+    if (e.target === document.getElementById('llmFormatModal')) closeLlmFormatter();
+  }
+
+  function loadRememberedLlmKeys() {
+    try { return JSON.parse(localStorage.getItem(LLM_KEYS_STORAGE) || '{}'); }
+    catch (_) { return {}; }
+  }
+
+  function refreshRememberedKeyForProvider() {
+    const provider = document.getElementById('llmProvider')?.value || 'openai';
+    const keyEl = document.getElementById('llmApiKey');
+    const rememberEl = document.getElementById('llmRememberKey');
+    if (!keyEl) return;
+    keyEl.placeholder = `${LLM_PROVIDER_LABELS[provider] || ''} API key`;
+    const cached = loadRememberedLlmKeys()[provider];
+    if (cached) {
+      keyEl.value = cached;
+      if (rememberEl) rememberEl.checked = true;
+    } else {
+      // Don't clobber a non-remembered key the user just typed for a different
+      // provider — only swap if the field is empty.
+      if (!keyEl.value) {
+        if (rememberEl) rememberEl.checked = false;
+      }
+    }
+  }
+
+  function persistRememberedKey() {
+    const rememberEl = document.getElementById('llmRememberKey');
+    const provider = document.getElementById('llmProvider')?.value || 'openai';
+    const key = (document.getElementById('llmApiKey')?.value || '').trim();
+    const map = loadRememberedLlmKeys();
+    if (rememberEl?.checked && key) {
+      map[provider] = key;
+    } else {
+      delete map[provider];
+    }
+    try { localStorage.setItem(LLM_KEYS_STORAGE, JSON.stringify(map)); } catch (_) {}
+  }
+
+  function setLlmError(msg) {
+    const el = document.getElementById('llmError');
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.style.display = 'block'; }
+    else     { el.textContent = ''; el.style.display = 'none'; }
+  }
+
+  function switchLlmTab(which) {
+    document.querySelectorAll('.llm-tab').forEach((b) => {
+      const isActive = b.getAttribute('data-tab') === which;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-selected', String(isActive));
+    });
+    document.getElementById('llmTabPaste').style.display = which === 'paste' ? 'block' : 'none';
+    document.getElementById('llmTabUpload').style.display = which === 'upload' ? 'block' : 'none';
+  }
+
+  function updateRawInputCount() {
+    const ta = document.getElementById('llmRawInput');
+    const out = document.getElementById('llmRawInputCount');
+    if (!ta || !out) return;
+    const n = ta.value.length;
+    const cap = 30000;
+    out.textContent = `${n.toLocaleString()} characters${n > cap ? ` — exceeds ${cap.toLocaleString()} limit, will be truncated` : ''}`;
+    out.style.color = n > cap ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))';
+  }
+
+  /* Client-side file extraction. Heavy parsers (xlsx, mammoth) load from
+     esm.sh on demand so they don't bloat the initial page download.
+     PDF: not supported yet — user is asked to paste the text. */
+  async function extractFileText(file) {
+    if (!file) throw new Error('No file selected.');
+    if (file.size > 5 * 1024 * 1024) throw new Error('File is larger than 5 MB. Trim it or split into smaller files.');
+    const name = (file.name || '').toLowerCase();
+    const ext = name.split('.').pop() || '';
+
+    if (ext === 'txt' || ext === 'csv') {
+      return await file.text();
+    }
+    if (ext === 'xlsx') {
+      const mod = await import('https://esm.sh/xlsx@0.20.3');
+      const XLSX = mod.default || mod;
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const chunks = wb.SheetNames.map((n) => {
+        const sheet = wb.Sheets[n];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+        return `# Sheet: ${n}\n${csv}`;
+      });
+      return chunks.join('\n\n').trim();
+    }
+    if (ext === 'docx') {
+      const mod = await import('https://esm.sh/mammoth@1.8.0/mammoth.browser.js');
+      const mammoth = mod.default || mod;
+      const buf = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      return (result.value || '').trim();
+    }
+    if (ext === 'pdf') {
+      throw new Error('PDF text extraction isn\'t supported here yet — open the PDF, copy the text, and paste it into the "Paste text" tab.');
+    }
+    throw new Error(`Unsupported file type: .${ext}. Use .txt, .csv, .xlsx, or .docx.`);
+  }
+
+  async function onLlmFileChange(ev) {
+    setLlmError('');
+    _llmExtractedText = '';
+    const status = document.getElementById('llmFileStatus');
+    const file = ev.target.files?.[0];
+    if (!file) { if (status) status.textContent = ''; return; }
+    if (status) status.textContent = `Reading "${file.name}"…`;
+    try {
+      let text = await extractFileText(file);
+      if (!text || !text.trim()) throw new Error('Could not extract any text from this file. Try copying the content manually into the Paste text tab.');
+      let truncated = false;
+      if (text.length > 30000) {
+        text = text.slice(0, 30000);
+        truncated = true;
+      }
+      _llmExtractedText = text;
+      if (status) {
+        status.innerHTML = `Extracted <b>${text.length.toLocaleString()}</b> characters from <b>${escHtml(file.name)}</b>.` +
+          (truncated ? ' <span style="color:hsl(38 92% 30%)">Truncated to the 30,000-character limit.</span>' : '');
+      }
+    } catch (err) {
+      _llmExtractedText = '';
+      const msg = (err && err.message) ? err.message : String(err);
+      if (status) status.textContent = '';
+      setLlmError(msg);
+    }
+  }
+
+  function currentLlmRawText() {
+    const activeTab = document.querySelector('.llm-tab.active')?.getAttribute('data-tab') || 'paste';
+    if (activeTab === 'paste') return (document.getElementById('llmRawInput')?.value || '').trim();
+    return _llmExtractedText.trim();
+  }
+
+  function readLlmOptions() {
+    const opts = {};
+    document.querySelectorAll('.llm-opt').forEach((cb) => {
+      opts[cb.getAttribute('data-opt')] = cb.checked;
+    });
+    return opts;
+  }
+
+  async function doLlmFormat() {
+    setLlmError('');
+    const provider = document.getElementById('llmProvider')?.value || 'openai';
+    const apiKey = (document.getElementById('llmApiKey')?.value || '').trim();
+    const surveyType = document.getElementById('surveyType')?.value || 'ClassicForm';
+    const rawText = currentLlmRawText();
+
+    if (!apiKey) { setLlmError('Provide your LLM API key.'); return; }
+    if (!rawText) { setLlmError('Paste some text or upload a file before formatting.'); return; }
+    if (rawText.length > 30000) {
+      setLlmError(`Input is ${rawText.length.toLocaleString()} characters — too long. Trim it under 30,000.`);
+      return;
+    }
+
+    const formatBtn = document.getElementById('llmFormatBtn');
+    const originalLabel = formatBtn?.textContent;
+    if (formatBtn) {
+      formatBtn.disabled = true;
+      formatBtn.innerHTML = '<span class="spinner"></span>Formatting…';
+    }
+    try {
+      const res = await fetch(`${BASE}/format-with-llm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, apiKey, surveyType, rawText, options: readLlmOptions() }),
+      });
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+      if (!res.ok) {
+        setLlmError(`HTTP ${res.status}: ${data.error || 'no error message returned'}`);
+        return;
+      }
+      _llmFormatted = data.formattedPrompt || '';
+      const out = document.getElementById('llmFormattedOutput');
+      if (out) out.value = _llmFormatted;
+      document.getElementById('llmOutputSection').style.display = 'block';
+      document.getElementById('llmInsertBtn').disabled = !_llmFormatted;
+      document.getElementById('llmCopyBtn').disabled = !_llmFormatted;
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        setLlmError(data.warnings.join(' '));
+      }
+      // Save the key NOW (after a successful call) if remember is checked.
+      persistRememberedKey();
+    } catch (err) {
+      setLlmError(`Network error: ${err && err.message ? err.message : String(err)}`);
+    } finally {
+      if (formatBtn) {
+        formatBtn.disabled = false;
+        formatBtn.textContent = originalLabel || 'Format with LLM';
+      }
+    }
+  }
+
+  function insertLlmIntoPrompt() {
+    if (!_llmFormatted) return;
+    const ta = document.getElementById('prompt');
+    if (!ta) return;
+    if (ta.value.trim() && !confirm('This will replace the current structured prompt. Continue?')) return;
+    ta.value = _llmFormatted;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    // Leave the modal open with a success message so the user can iterate.
+    setLlmError('');
+    const out = document.getElementById('llmFormattedOutput');
+    if (out) out.focus({ preventScroll: true });
+    const status = document.createElement('div');
+    status.style.cssText = 'margin-top:8px;padding:8px 12px;background:hsl(var(--success) / 0.1);border:1px solid hsl(var(--success) / 0.3);border-radius:6px;font-size:12.5px;color:hsl(var(--success))';
+    status.textContent = 'Inserted into Structured Prompt. Close this modal and click Validate format to continue.';
+    const errEl = document.getElementById('llmError');
+    errEl?.parentElement?.insertBefore(status, errEl);
+    setTimeout(() => status.remove(), 4000);
+  }
+
+  function copyLlmOutput() {
+    if (!_llmFormatted) return;
+    const btn = document.getElementById('llmCopyBtn');
+    const orig = btn.textContent;
+    navigator.clipboard.writeText(_llmFormatted).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+    }).catch(() => { prompt('Copy this:', _llmFormatted); });
+  }
+
+  function initLlmFormatter() {
+    document.getElementById('llmProvider')?.addEventListener('change', refreshRememberedKeyForProvider);
+    document.getElementById('llmFileInput')?.addEventListener('change', onLlmFileChange);
+    document.getElementById('llmRawInput')?.addEventListener('input', updateRawInputCount);
+    document.querySelectorAll('.llm-tab').forEach((b) => {
+      b.addEventListener('click', () => switchLlmTab(b.getAttribute('data-tab')));
+    });
+    // Pre-populate the field if a key for OpenAI (default provider) was remembered.
+    refreshRememberedKeyForProvider();
+  }
 
   function copyGptPrompt() {
     const surveyType = (document.getElementById('surveyType')?.value || 'ClassicForm').trim();
@@ -4248,6 +4771,7 @@ Now convert the uploaded document or pasted content into this format.`;
       initTypeSupportCount();
       initVariablesCard();
       initFolderSearch();
+      initLlmFormatter();
     }
   })();
 </script>

@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { logger } from "./lib/logger.js";
 import surveysparrowRouter from "./routes/surveysparrow.js";
+import llmRouter from "./routes/llm.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // public/ sits next to src/ at the project root, and index.html lives at the
@@ -40,6 +41,10 @@ app.get("/api/healthz", (_req, res) => {
 
 // SurveySparrow routes
 app.use("/api", surveysparrowRouter);
+
+// Optional LLM formatter route (BYO key). Independent of the SurveySparrow
+// router so the import flow never depends on LLM availability.
+app.use("/api", llmRouter);
 
 // Static assets — images, sounds, etc. live under public/.
 app.use(express.static(publicDir));

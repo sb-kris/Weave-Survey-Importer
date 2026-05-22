@@ -117,6 +117,7 @@ Render injects `PORT` automatically; no extra environment variables are required
 | POST   | `/api/folders`          | List the user's survey folders for the given region + API key.         |
 | POST   | `/api/create-survey`    | Parse a prompt and create the survey + sections + questions.           |
 | POST   | `/api/variables-batch`  | Attach session-wide context variables to an already-created survey. Body: `{ region, apiKey, surveyId, variables: [{ name, label?, type, description? }] }`. Types: `STRING` / `NUMBER` / `DATE`. Max 50 per call. |
+| POST   | `/api/format-with-llm`  | Optional BYO-key formatter. Body: `{ provider, apiKey, surveyType, rawText, options }`. Provider is `openai` / `anthropic` / `gemini`. Sends `rawText` to the user-supplied LLM with a structured-prompt instruction; returns `{ formattedPrompt, warnings }`. The LLM key is never stored or logged server-side and is redacted from any error string before it leaves the process. 30 KB input cap. |
 | GET    | `/api/healthz`          | Liveness probe (used by Render's health check).                        |
 
 The API key is sent in every request body and is never persisted server-side.
@@ -202,6 +203,7 @@ The Formatting Helper modal contains the full prompt you can drop into ChatGPT o
 | `plumage_sound_enabled`            | Status sounds toggle.                                    |
 | `plumage_click_sound_enabled`      | Click sounds toggle.                                     |
 | `weave_variables`                  | Session-wide variables list (`[{ name, type }]`) attached to every survey created. Edited via the **Variables** card. |
+| `weave_llm_keys`                   | Opt-in per-provider LLM API key cache (`{ openai, anthropic, gemini }`). Populated only when the user ticks "Remember this key in this browser" in the **Format using LLM** modal. Default OFF. Never sent to the SurveySparrow API; only used by the user's own LLM provider. |
 
 `sessionStorage.plumage_first_success` gates the one-time celebration sound + confetti per session.
 

@@ -18,6 +18,7 @@ import express from "express";
 import cors from "cors";
 import serverless from "serverless-http";
 import surveysparrowRouter from "../../src/routes/surveysparrow.js";
+import llmRouter from "../../src/routes/llm.js";
 
 const app = express();
 
@@ -30,6 +31,8 @@ app.get("/api/healthz", (_req, res) => {
 });
 
 app.use("/api", surveysparrowRouter);
+// Optional LLM formatter route (BYO key, see src/routes/llm.ts).
+app.use("/api", llmRouter);
 
 // serverless-http returns a Lambda-compatible handler. Netlify Functions use
 // the same interface, so this drops in directly.
