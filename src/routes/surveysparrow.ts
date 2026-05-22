@@ -163,6 +163,12 @@ router.post("/create-survey", async (req, res) => {
   }
   const type = surveyType || parsed.surveyType || "ClassicForm";
 
+  // Defensive merge happens upfront so the native-score override is known
+  // BEFORE POST /v3/surveys completes — we need it to PATCH the auto-created
+  // score question on NPS/CES/CSAT surveys immediately after creation.
+  const mergeResult = mergeFeedbackFollowups(parsed.questions, type);
+  const questionsToCreate = mergeResult.questions;
+
   // Minimal payload matching the verified working SurveySparrow shape:
   //   { name, survey_type, primary_language, survey_folder_id }
   // visibility is intentionally omitted — SurveySparrow's defaults work and
@@ -229,6 +235,41 @@ router.post("/create-survey", async (req, res) => {
     return;
   }
 
+  // NPS / CES / CSAT native score-question text patch.
+  // When the survey type is one of those three, SurveySparrow auto-creates a
+  // default account-level score question during POST /v3/surveys (using
+  // text like "How satisfied are you with <YourCompany>?"). The merge step
+  // captured the user's custom score-question text in `scoreOverride` —
+  // apply it now so the survey ships with the right text.
+  if (mergeResult.scoreOverride && (type === "NPS" || type === "CES" || type === "CSAT")) {
+    const override = mergeResult.scoreOverride;
+    const patchError = await patchNativeScoreQuestion(
+      baseUrl, apiKey, surveyId, type, override, debugLog,
+    );
+    const feedbackType: string = type === "NPS" ? "NPSFeedback" : type === "CSAT" ? "CSATFeedback" : "CESFeedback";
+    if (!patchError) {
+      questionResults.push({
+        localId: override.localId,
+        text: override.text,
+        intendedType: feedbackType,
+        createdType: type,
+        status: "created_compatible",
+        warning: `Updated SurveySparrow's auto-created native ${type} score question with your custom text.`,
+      });
+      warnings.push(`Q${override.localId}: updated native ${type} score question text.`);
+    } else {
+      questionResults.push({
+        localId: override.localId,
+        text: override.text,
+        intendedType: feedbackType,
+        createdType: type,
+        status: "failed",
+        warning: `Could not update native ${type} score question — please edit Q1 manually in SurveySparrow. ${patchError}`.trim(),
+      });
+      warnings.push(`Q${override.localId}: could not update native ${type} score question — edit Q1 manually inside SurveySparrow.`);
+    }
+  }
+
   // V2: Create sections
   const sectionIdMap: Record<string, number | string> = {};
   let sectionsCreated = 0;
@@ -274,12 +315,9 @@ router.post("/create-survey", async (req, res) => {
   let fallbackCount = 0;
   const qEndpoint = "/v3/questions";
 
-  // Defensive merge: when the survey is NPS / CES / CSAT, fold "score Q + open-text
-  // follow-up" pairs into a single NPSFeedback / CESFeedback / CSATFeedback
-  // question with per-rating bucket data. Standalone score Qs are dropped because
-  // the rating step is implicit in those survey types.
-  const questionsToCreate = mergeFeedbackFollowups(parsed.questions, type);
-
+  // mergeResult / questionsToCreate are computed upfront, before POST
+  // /v3/surveys (so the native-score-override is available immediately
+  // after the survey is created). Iterate the merged list here.
   for (const q of questionsToCreate) {
     const originalIntendedType = inferType(q);
     const compat = getCompatibleQuestionType(q, originalIntendedType, type);
@@ -287,7 +325,14 @@ router.post("/create-survey", async (req, res) => {
     const effectiveType = compat.remappedType;
     const compatibilityNote = compat.note;
 
-    const sectionId = q.section ? sectionIdMap[q.section] : undefined;
+    // SurveySparrow rejects NPSFeedback / CSATFeedback / CESFeedback creation
+    // when section_id is present ("CX feedback question cannot be added to a
+    // section"). Drop the section assignment for these types so the feedback
+    // Q ends up at the top level alongside the native score.
+    const FEEDBACK_TYPES_NO_SECTION = new Set(["NPSFeedback", "CSATFeedback", "CESFeedback"]);
+    const sectionId = (q.section && !FEEDBACK_TYPES_NO_SECTION.has(effectiveType))
+      ? sectionIdMap[q.section]
+      : undefined;
     const result = await attemptCreateQuestion(baseUrl, apiKey, surveyId, effectiveQ, effectiveType, qEndpoint, debugLog, sectionId);
 
     // If remapped for compatibility and creation succeeded, upgrade status and note
@@ -575,6 +620,122 @@ router.post("/variables-batch", async (req, res) => {
     res.status(500).json({ error: "Failed to attach variables: " + msg, debugLog });
   }
 });
+
+/**
+ * For NPS / CES / CSAT surveys, SurveySparrow auto-creates a native score
+ * question during POST /v3/surveys (using the account's default text — e.g.
+ * "How satisfied are you with <YourCompany>?"). When the user's structured
+ * prompt overrides that score with custom text, we patch the native question
+ * in-place rather than creating a second one.
+ *
+ * Returns undefined on success, or a short error string on failure (which
+ * the caller turns into a result-table warning). Never throws.
+ */
+async function patchNativeScoreQuestion(
+  baseUrl: string,
+  apiKey: string,
+  surveyId: number | string,
+  surveyType: "NPS" | "CES" | "CSAT",
+  override: { text: string; required: boolean; localId: string },
+  debugLog: DebugEntry[],
+): Promise<string | undefined> {
+  const listEndpoint = `/v3/questions?survey_id=${encodeURIComponent(String(surveyId))}`;
+  let listResult;
+  try {
+    listResult = await ssGet(baseUrl, apiKey, listEndpoint);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    debugLog.push({
+      step: `Lookup native ${surveyType} score question`,
+      endpoint: `GET ${listEndpoint}`,
+      status: "network error",
+      payload: null,
+      response: null,
+      error: msg,
+    });
+    return `network error while listing questions: ${msg}`;
+  }
+  debugLog.push({
+    step: `Lookup native ${surveyType} score question`,
+    endpoint: `GET ${listEndpoint}`,
+    status: listResult.status,
+    payload: null,
+    response: listResult.data,
+  });
+  if (!listResult.ok) {
+    return `GET /v3/questions returned ${listResult.status}`;
+  }
+
+  // SurveySparrow may wrap the list in { data: [...] } or return the array
+  // directly. Normalize before searching.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw: any = listResult.data;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const items: any[] = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+  if (items.length === 0) {
+    return "no questions returned from list endpoint";
+  }
+
+  // Identify the native score question. SurveySparrow's question.type for the
+  // native one matches the survey type (NPSFeedback / CSATFeedback /
+  // CESFeedback), or sometimes just NPS/CSAT/CES. The native question is
+  // always position 1 in a freshly-created survey, so position is the most
+  // reliable tiebreaker.
+  const nativeTypeNames = new Set([
+    surveyType,
+    `${surveyType}Feedback`,
+    `${surveyType}Question`,
+  ].map((s) => s.toLowerCase()));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let nativeQ: any = items.find((q) => {
+    const t = String(q?.type ?? "").toLowerCase();
+    return nativeTypeNames.has(t);
+  });
+  if (!nativeQ) {
+    // Fallback: take the first question on the survey — for a brand-new
+    // NPS/CES/CSAT survey there's only one auto-created question.
+    nativeQ = items.find((q) => Number(q?.position ?? 0) === 1) ?? items[0];
+  }
+  const nativeId = nativeQ?.id;
+  if (!nativeId) {
+    return "could not identify native score question id in list response";
+  }
+
+  const patchEndpoint = `/v3/questions/${encodeURIComponent(String(nativeId))}`;
+  const patchPayload = {
+    survey_id: Number(surveyId),
+    question: {
+      text: override.text,
+      required: override.required,
+    },
+  };
+  let patchResult;
+  try {
+    patchResult = await ssPut(baseUrl, apiKey, patchEndpoint, patchPayload);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    debugLog.push({
+      step: `Patch native ${surveyType} score question`,
+      endpoint: `PUT ${patchEndpoint}`,
+      status: "network error",
+      payload: patchPayload,
+      response: null,
+      error: msg,
+    });
+    return `network error while updating question ${nativeId}: ${msg}`;
+  }
+  debugLog.push({
+    step: `Patch native ${surveyType} score question`,
+    endpoint: `PUT ${patchEndpoint}`,
+    status: patchResult.status,
+    payload: patchPayload,
+    response: patchResult.data,
+  });
+  if (!patchResult.ok) {
+    return `PUT /v3/questions/${nativeId} returned ${patchResult.status}`;
+  }
+  return undefined;
+}
 
 async function attemptCreateQuestion(
   baseUrl: string,
@@ -1250,17 +1411,29 @@ function inferType(q: ParsedQuestion): string {
  *
  * For ClassicForm (and any other survey type) this is a no-op.
  */
+interface MergeFeedbackResult {
+  questions: ParsedQuestion[];
+  /**
+   * If the user gave the prompt an explicit score question (Type: NPS / CES /
+   * CSAT) inside a native NPS/CES/CSAT survey, we capture its text and
+   * required flag here so the route can PATCH SurveySparrow's auto-created
+   * default score question after the survey is created. Without this, the
+   * user's custom score text was silently lost.
+   */
+  scoreOverride: { text: string; required: boolean; localId: string } | null;
+}
+
 function mergeFeedbackFollowups(
   questions: ParsedQuestion[],
   surveyType: string,
-): ParsedQuestion[] {
+): MergeFeedbackResult {
   const FEEDBACK_FOR: Record<string, string> = {
     NPS: "NPSFeedback",
     CES: "CESFeedback",
     CSAT: "CSATFeedback",
   };
   const feedbackType = FEEDBACK_FOR[surveyType];
-  if (!feedbackType) return questions;
+  if (!feedbackType) return { questions, scoreOverride: null };
 
   const isExplicitScore = (q: ParsedQuestion): boolean => {
     const raw = q.type.toLowerCase().trim();
@@ -1304,27 +1477,45 @@ function mergeFeedbackFollowups(
   };
 
   const result: ParsedQuestion[] = [];
+  /**
+   * We keep only the FIRST score-Q override we see. SurveySparrow surveys
+   * have one native score question per type, so any subsequent explicit
+   * score Qs would still be dropped (and we'd have nothing useful to do
+   * with the extra text anyway).
+   */
+  let scoreOverride: MergeFeedbackResult["scoreOverride"] = null;
+  const captureScoreOverride = (q: ParsedQuestion) => {
+    if (scoreOverride) return;
+    const text = (q.text || "").trim();
+    if (!text) return;
+    scoreOverride = { text, required: Boolean(q.required), localId: q.localId };
+  };
+
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
 
     if (isExplicitScore(q)) {
+      // Always capture the score text — whether the score is alone, paired
+      // with an explicit feedback Q, or paired with a plain open-text follow-up.
+      captureScoreOverride(q);
       const next = questions[i + 1];
       if (next && isExplicitFeedbackType(next)) {
-        // Score + explicit feedback Q — drop the score, keep the feedback Q
-        // exactly as the LLM/user wrote it (per-bucket fields preserved).
+        // Score + explicit feedback Q — drop the score (we'll PATCH the
+        // native one later), keep the feedback Q exactly as written.
         result.push(next);
-        i++; // consume the feedback Q
+        i++;
         continue;
       }
       if (next && isPlainOpenText(next)) {
         // Score + plain open-text right after — coerce the open-text into
-        // the matching feedback type.
+        // the matching feedback type, drop the score.
         result.push(coerceToFeedback(next));
-        i++; // consume the follow-up
+        i++;
         continue;
       }
-      // Score Q with no qualifying immediate follow-up — silently drop it
-      // (the rating step is implicit in NPS/CES/CSAT surveys).
+      // Score Q with no qualifying immediate follow-up — drop it from the
+      // questions-to-create list (the rating step is implicit / native),
+      // but the override above ensures its custom text is applied later.
       continue;
     }
 
@@ -1337,7 +1528,7 @@ function mergeFeedbackFollowups(
 
     result.push(q);
   }
-  return result;
+  return { questions: result, scoreOverride };
 }
 
 interface ShowIf {

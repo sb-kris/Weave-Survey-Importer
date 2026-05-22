@@ -4670,6 +4670,35 @@ Now convert the uploaded document or pasted content into this format.`;
       ? `<div class="low-conf-warning" style="background:hsl(var(--primary) / 0.06);border-left-color:hsl(var(--primary));color:hsl(var(--primary))">Detected ${curlyMatches.length} curly-brace variable${curlyMatches.length === 1 ? '' : 's'}. These will be converted to SurveySparrow's <code>$name</code> syntax on Create Survey — sample: <code>${escHtml(curlyMatches[0])}</code> → <code>${escHtml(curlyToDollar(curlyMatches[0]))}</code>.</div>`
       : '';
 
+    // Informational banner for native-score-aware survey types. CSAT/NPS/CES
+    // surveys auto-create a default score question on POST /v3/surveys —
+    // Weave patches it with the user's custom text from the prompt's
+    // Type: CSAT/NPS/CES question. Tell the user this is going to happen.
+    const surveyTypeSel = (document.getElementById('surveyType')?.value || 'ClassicForm').trim();
+    const isNativeScoreSurvey = surveyTypeSel === 'CSAT' || surveyTypeSel === 'NPS' || surveyTypeSel === 'CES';
+    const explicitScoreQ = parsed.questions.find((q) => {
+      const t = (q.rawType || q.canonicalType || '').toLowerCase();
+      return t === 'csat' || t === 'nps' || t === 'ces';
+    });
+    const hasFeedbackInSection = parsed.questions.some((q) => {
+      const t = (q.rawType || q.canonicalType || '').toLowerCase();
+      return (t === 'csatfeedback' || t === 'npsfeedback' || t === 'cesfeedback') && !!q.section;
+    });
+    const nativeScoreNotices = [];
+    if (isNativeScoreSurvey && explicitScoreQ) {
+      nativeScoreNotices.push(
+        `<code>${surveyTypeSel}</code> surveys auto-create a default score question. Weave will update it with your <code>Q${escHtml(explicitScoreQ.localId)}</code> text after create.`,
+      );
+    }
+    if (hasFeedbackInSection) {
+      nativeScoreNotices.push(
+        `<code>${surveyTypeSel}Feedback</code> may be created outside sections — SurveySparrow rejects CX feedback questions inside sections.`,
+      );
+    }
+    const nativeScoreNoticeHtml = nativeScoreNotices.length > 0
+      ? `<div class="low-conf-warning" style="background:hsl(var(--primary) / 0.06);border-left-color:hsl(var(--primary));color:hsl(var(--primary))">${nativeScoreNotices.join(' ')}</div>`
+      : '';
+
     const metaParts = [];
     if (parsed.title) metaParts.push(`Title: <b>${escHtml(parsed.title)}</b>`);
     metaParts.push(`Type: <b>${escHtml(parsed.surveyType || 'ClassicForm')}</b>`);
@@ -4763,7 +4792,7 @@ Now convert the uploaded document or pasted content into this format.`;
 
     previewEl.innerHTML = `<details class="parse-preview" open>
       <summary>Parsed survey preview — ${parsed.questions.length} question${parsed.questions.length !== 1 ? 's' : ''} detected</summary>
-      ${lowWarningHtml}${curlyNoticeHtml}${metaHtml}${tableHtml}
+      ${lowWarningHtml}${curlyNoticeHtml}${nativeScoreNoticeHtml}${metaHtml}${tableHtml}
     </details>`;
 
     if (hasLow) playErrorChime(); else playSuccessChime();
