@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { normalizePlaceholdersInString } from "../lib/placeholders.js";
 
 const router: IRouter = Router();
 
@@ -115,7 +116,51 @@ router.post("/create-survey", async (req, res) => {
   const questionResults: QuestionResult[] = [];
 
   const parsed = parsePrompt(prompt);
-  const title = surveyTitle || parsed.title || "Untitled Survey";
+
+  // Convert any `{{name}}` placeholders the user pasted into the SurveySparrow
+  // `$name` syntax across every text field that ends up in a survey payload.
+  // Counted once so we can show a single human-readable warning at the end.
+  let placeholderConversions = 0;
+  const normalize = (s: string | undefined | null): string => {
+    const r = normalizePlaceholdersInString(s);
+    placeholderConversions += r.count;
+    return r.out;
+  };
+  parsed.title              = normalize(parsed.title);
+  parsed.welcomeTitle       = normalize(parsed.welcomeTitle);
+  parsed.welcomeDescription = normalize(parsed.welcomeDescription);
+  parsed.thankYouMessage    = normalize(parsed.thankYouMessage);
+  parsed.thankYouDescription = normalize(parsed.thankYouDescription);
+  parsed.sections = parsed.sections.map((s) => normalize(s));
+  for (const q of parsed.questions) {
+    q.text        = normalize(q.text);
+    q.description = normalize(q.description);
+    q.consentText = normalize(q.consentText);
+    q.minLabel    = normalize(q.minLabel);
+    q.maxLabel    = normalize(q.maxLabel);
+    q.section     = normalize(q.section);
+    q.options = q.options.map((v) => normalize(v));
+    q.rows    = q.rows.map((v) => normalize(v));
+    q.columns = q.columns.map((v) => normalize(v));
+    // Feedback-bucket follow-up text (NPSFeedback / CESFeedback / CSATFeedback).
+    if (q.feedbackPromoter)     q.feedbackPromoter     = normalize(q.feedbackPromoter);
+    if (q.feedbackPassive)      q.feedbackPassive      = normalize(q.feedbackPassive);
+    if (q.feedbackDetractor)    q.feedbackDetractor    = normalize(q.feedbackDetractor);
+    if (q.feedbackLowEffort)    q.feedbackLowEffort    = normalize(q.feedbackLowEffort);
+    if (q.feedbackNeutral)      q.feedbackNeutral      = normalize(q.feedbackNeutral);
+    if (q.feedbackHighEffort)   q.feedbackHighEffort   = normalize(q.feedbackHighEffort);
+    if (q.feedbackSatisfied)    q.feedbackSatisfied    = normalize(q.feedbackSatisfied);
+    if (q.feedbackDissatisfied) q.feedbackDissatisfied = normalize(q.feedbackDissatisfied);
+  }
+  // The form-supplied surveyTitle bypasses parsePrompt entirely, so normalize
+  // it separately before it overrides parsed.title.
+  const titleRaw = surveyTitle ?? parsed.title;
+  const titleNorm = normalizePlaceholdersInString(titleRaw || "Untitled Survey");
+  placeholderConversions += titleNorm.count;
+  const title = titleNorm.out;
+  if (placeholderConversions > 0) {
+    warnings.push(`Converted ${placeholderConversions} curly-brace placeholder${placeholderConversions === 1 ? "" : "s"} to SurveySparrow $name syntax.`);
+  }
   const type = surveyType || parsed.surveyType || "ClassicForm";
 
   // Minimal payload matching the verified working SurveySparrow shape:

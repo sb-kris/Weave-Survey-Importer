@@ -1801,7 +1801,7 @@
           <label for="variableName">Name</label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
-            <div class="tooltip-bubble">Machine identifier for the variable (e.g. customer_email, lifecycle_stage). Must be unique. Up to 500 characters.</div>
+            <div class="tooltip-bubble">Machine identifier for the variable (e.g. customer_email, lifecycle_stage). Saved as the bare key; SurveySparrow references it as <code>$customer_email</code> inside survey text. Must be unique. Up to 500 characters.</div>
           </div>
         </div>
         <input type="text" id="variableName" placeholder="e.g. customer_email" autocomplete="off" />
@@ -1828,7 +1828,7 @@
     </div>
     <div id="variablesError" class="variables-error" role="alert"></div>
     <div id="variablesList" class="variables-list" style="display:none"></div>
-    <p class="variables-hint" style="margin-top:14px;margin-bottom:0">Use copied placeholders inside survey title, welcome text, question text, descriptions, options, or thank-you text.</p>
+    <p class="variables-hint" style="margin-top:14px;margin-bottom:0">Use copied placeholders (SurveySparrow uses <code>$name</code> syntax — for example <code>$customer_name</code>) inside survey title, welcome text, question text, descriptions, options, or thank-you text. Legacy <code>{{name}}</code> in pasted prompts is auto-converted before send.</p>
 
     <!-- Bulk paste workflow — collapsed by default so the card stays compact. -->
     <details class="bulk-paste">
@@ -1839,11 +1839,11 @@
         </span>
       </summary>
       <div class="bulk-paste-body">
-        <p class="bulk-paste-help">Paste one variable per line. Accepted formats: <code>customer_email</code>, <code>customer_name, Customer Name</code>, <code>customer_email, Email</code>, <code>customer_email, Customer Email, Email</code>, <code>ticket_id: Ticket ID</code>, <code>customer_email | Email</code>, <code>{{customer_name}}</code>. Multiple bare keys on one line separated by commas also work.</p>
+        <p class="bulk-paste-help">Paste one variable per line. Accepted formats: <code>customer_email</code>, <code>$customer_email</code> (SurveySparrow syntax), <code>{{customer_email}}</code> (legacy), <code>customer_name, Customer Name</code>, <code>customer_email, Customer Email, Email</code>, <code>ticket_id: Ticket ID</code>, <code>customer_email | Email</code>. Multiple bare keys on one line separated by commas also work. Saved variables use SurveySparrow's <code>$name</code> syntax for use inside survey text.</p>
         <textarea id="bulkPasteInput" placeholder="customer_name, Customer Name
 customer_email, Customer Email, Email
 ticket_id: Ticket ID
-{{account_name}}"></textarea>
+$account_name"></textarea>
         <div class="bulk-paste-actions">
           <button type="button" id="bulkParseBtn" class="btn-secondary">Parse variables</button>
           <button type="button" id="bulkSaveBtn" class="btn-primary" disabled>Save variables</button>
@@ -2016,7 +2016,7 @@ Required: No"></textarea>
         <li>Create the survey.</li>
       </ol>
       <p style="margin-top:14px;font-weight:600">Variables</p>
-      <p style="margin-top:4px">You can use placeholders like <code>{{customer_name}}</code>, <code>{{account_name}}</code>, <code>{{ticket_id}}</code>, or <code>{{customer_email}}</code> inside:</p>
+      <p style="margin-top:4px">SurveySparrow variables use dollar syntax: <code>$customer_name</code>, <code>$account_name</code>, <code>$ticket_id</code>, <code>$customer_email</code>. Use them inside:</p>
       <ul style="margin-top:6px;padding-left:20px">
         <li>Survey Title</li>
         <li>Welcome Title and Welcome Description</li>
@@ -2024,7 +2024,7 @@ Required: No"></textarea>
         <li>Options</li>
         <li>Thank You Message and Thank You Description</li>
       </ul>
-      <p style="margin-top:8px">Use the <b>Variables</b> card to prepare and copy placeholders — paste them anywhere in the structured prompt.</p>
+      <p style="margin-top:8px">If your source document already uses <code>{{customer_name}}</code> placeholders, Weave converts them to <code>$customer_name</code> automatically before sending to SurveySparrow — but new prompts should use <code>$name</code> directly. Use the <b>Variables</b> card to prepare and copy placeholders.</p>
     </div>
     <div class="modal-actions">
       <button class="btn-modal-primary" id="copyGptBtn" onclick="copyGptPrompt()" type="button">Copy GPT Cleanup Prompt</button>
@@ -2092,7 +2092,7 @@ Required: No"></textarea>
         <label><input type="checkbox" class="llm-opt" data-opt="removeDuplicates" checked>Remove duplicate questions</label>
         <label><input type="checkbox" class="llm-opt" data-opt="includeSections" checked>Include sections if obvious</label>
         <label><input type="checkbox" class="llm-opt" data-opt="includeWelcomeThankYou" checked>Include welcome and thank-you text if present</label>
-        <label><input type="checkbox" class="llm-opt" data-opt="preserveVariables" checked>Preserve placeholders like {{customer_name}}</label>
+        <label><input type="checkbox" class="llm-opt" data-opt="preserveVariables" checked>Preserve / use SurveySparrow placeholders like $customer_name</label>
       </div>
 
       <div id="llmError" style="display:none;margin-top:10px;padding:9px 12px;background:hsl(var(--destructive) / 0.08);border:1px solid hsl(var(--destructive) / 0.3);border-radius:7px;font-size:12.5px;color:hsl(var(--destructive));line-height:1.5"></div>
@@ -2450,11 +2450,17 @@ Required: No"></textarea>
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  /* Normalize a raw token to a safe variable key: strip {{ }}, lowercase,
-     collapse spaces to underscores, drop anything that isn't a-z 0-9 or _ */
+  /* Normalize a raw token to a safe variable key: strip a leading `$`
+     (SurveySparrow syntax) or surrounding `{{ }}` (legacy syntax),
+     lowercase, collapse spaces to underscores, drop anything that isn't
+     a-z 0-9 or _. So `customer_name`, `$customer_name`, and `{{customer_name}}`
+     all normalize to the same stored key `customer_name`. */
   function normalizeVariableKey(raw) {
     if (typeof raw !== 'string') return '';
-    let k = raw.trim().replace(/^\{\{\s*|\s*\}\}$/g, '').trim();
+    let k = raw.trim()
+      .replace(/^\{\{\s*|\s*\}\}$/g, '')
+      .replace(/^\$/, '')
+      .trim();
     k = k.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]+/g, '');
     return k.replace(/^_+|_+$/g, '');
   }
@@ -2498,7 +2504,10 @@ Required: No"></textarea>
   }
 
   function copyPlaceholder(key, btn) {
-    const text = `{{${key}}}`;
+    // SurveySparrow variable syntax is `$name`, not `{{name}}`. The backend
+    // also converts legacy `{{name}}` to `$name` before sending payloads, but
+    // we copy the canonical form here so new prompts use the right syntax.
+    const text = `$${key}`;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => prompt('Copy:', text));
     } else { prompt('Copy:', text); }
@@ -2517,11 +2526,11 @@ Required: No"></textarea>
     }
     const rows = vars.map((v, i) => `
       <tr>
-        <td><span class="variables-name">${escHtml(v.name)}</span></td>
+        <td><span class="variables-name">$${escHtml(v.name)}</span></td>
         <td style="font-size:12px;color:hsl(var(--muted-foreground))">${escHtml(v.label)}</td>
         <td><span class="variables-type">${escHtml(variableTypeLabel(v.type))}</span></td>
         <td style="text-align:right;width:1%;white-space:nowrap">
-          <button type="button" class="variables-copy" data-key="${escHtml(v.name)}">Copy {{}}</button>
+          <button type="button" class="variables-copy" data-key="${escHtml(v.name)}">Copy $name</button>
           <button type="button" class="variables-remove" data-idx="${i}" aria-label="Remove variable ${escHtml(v.name)}" style="margin-left:6px">×</button>
         </td>
       </tr>`).join('');
@@ -2617,7 +2626,10 @@ Required: No"></textarea>
     const TYPE_BY_LABEL = {};
     UI_VARIABLE_TYPES.forEach((t) => { TYPE_BY_LABEL[VARIABLE_TYPE_LABELS[t].toLowerCase()] = t; });
 
-    const looksLikeBareKey = (s) => /^\{?\{?[a-zA-Z][\w\-]*\}?\}?$/.test((s || '').trim());
+    // Accepts plain `customer_name`, mustache `{{customer_name}}`, and
+     // dollar-prefixed `$customer_name` so the bulk parser treats all three
+     // input syntaxes as legitimate bare keys.
+    const looksLikeBareKey = (s) => /^\$?\{?\{?[a-zA-Z][\w\-]*\}?\}?$/.test((s || '').trim());
 
     const pushOne = (rawKey, rawLabel, rawType) => {
       const name = normalizeVariableKey(rawKey);
@@ -2705,13 +2717,13 @@ Required: No"></textarea>
       `<option value="${t}">${escHtml(variableTypeLabel(t))}</option>`).join('');
     const rows = _bulkParsed.map((v, i) => `
       <tr>
-        <td><span class="variables-name">${escHtml(v.name)}</span></td>
+        <td><span class="variables-name">$${escHtml(v.name)}</span></td>
         <td><input type="text" class="bulk-label" data-idx="${i}" value="${escHtml(v.label)}" autocomplete="off" /></td>
         <td>
           <select class="bulk-type" data-idx="${i}">${typeOpts}</select>
         </td>
         <td style="text-align:right;width:1%;white-space:nowrap">
-          <button type="button" class="variables-copy bulk-copy" data-key="${escHtml(v.name)}">Copy {{}}</button>
+          <button type="button" class="variables-copy bulk-copy" data-key="${escHtml(v.name)}">Copy $name</button>
           <button type="button" class="variables-remove bulk-remove" data-idx="${i}" aria-label="Remove ${escHtml(v.name)}" style="margin-left:6px">×</button>
         </td>
       </tr>`).join('');
@@ -3671,7 +3683,7 @@ Options:
 - Support quality
 - Ease of use
 7. If a PDF contains image-based answer choices, describe each visible image as a text option. Do not omit the options.
-8. If the source has placeholders like customer name, account name, ticket ID, or product name, preserve them using double curly braces, for example {{customer_name}}.
+8. If the source has placeholders like customer name, account name, ticket ID, or product name, use SurveySparrow's dollar syntax, for example $customer_name. (If the source uses {{customer_name}} double-curly-brace style, convert it to $customer_name.)
 9. If simple logic is clearly stated, include it as:
 Show if: Q[number] equals [value]
 Show if: Q[number] is less than [value]
@@ -3680,10 +3692,11 @@ Ignore complex branching.
 10. Do not include welcome screens or thank-you screens unless requested. If requested, use Welcome Title, Welcome Description, Thank You Message, and Thank You Description.
 
 Variables (placeholders):
-- If the source content already contains placeholders like {{customer_name}}, {{ticket_id}}, {{account_name}}, {{customer_email}}, or any other {{snake_case_token}}, PRESERVE them exactly as written. Do not rename, expand, or remove them.
+- SurveySparrow variables use DOLLAR syntax: $customer_name, $account_name, $ticket_id, $customer_email.
+- If the source content uses curly-brace placeholders like {{customer_name}} or {{ticket_id}}, CONVERT them to the equivalent $customer_name / $ticket_id in your output. Do not keep the curly braces.
 - Placeholders are valid inside Survey Title, Welcome Title, Welcome Description, question text, Description, Options, Thank You Message, and Thank You Description.
-- If the source mentions a known customer field by name (e.g. "the customer's name", "their email", "this ticket"), you MAY introduce a placeholder like {{customer_name}} only when it clearly improves the survey (personalization). Do not invent more than 3-4 new placeholders, and never invent placeholders for fields that are not clearly referenced in the source.
-- Use snake_case for placeholder keys: {{customer_name}} (not {{customerName}} or {{Customer Name}}).
+- If the source mentions a known customer field by name (e.g. "the customer's name", "their email", "this ticket"), you MAY introduce a placeholder like $customer_name only when it clearly improves the survey (personalization). Do not invent more than 3-4 new placeholders, and never invent placeholders for fields that are not clearly referenced in the source.
+- Use snake_case lowercase keys: $customer_name (not $customerName or $Customer-Name).
 
 NPS / CES / CSAT feedback follow-ups (position-strict rule):
 1. SurveySparrow allows AT MOST ONE NPSFeedback (or CESFeedback / CSATFeedback) per survey, and it MUST sit directly after the corresponding score question. A second one, or one placed anywhere else, will be rejected by the API with "feedback question already exists for survey".
@@ -3778,7 +3791,7 @@ Thank You Description: Your response has been recorded.
 
 Section: Product Experience
 
-Q1. Hi {{customer_name}}, what is your full name?
+Q1. Hi $customer_name, what is your full name?
 Type: Short text
 Required: Yes
 
@@ -4648,6 +4661,15 @@ Now convert the uploaded document or pasted content into this format.`;
       ? `<div class="low-conf-warning">Review low-confidence questions before creating the survey.</div>`
       : '';
 
+    // Non-blocking note when the user pasted `{{name}}` style variables. The
+    // server normalizes these to SurveySparrow's `$name` syntax automatically
+    // — this just tells the user it'll happen so they're not surprised by
+    // the conversion warning in the create-survey result.
+    const curlyMatches = raw.match(/\{\{\s*[A-Za-z][A-Za-z0-9 _\-]*\s*\}\}/g) || [];
+    const curlyNoticeHtml = curlyMatches.length > 0
+      ? `<div class="low-conf-warning" style="background:hsl(var(--primary) / 0.06);border-left-color:hsl(var(--primary));color:hsl(var(--primary))">Detected ${curlyMatches.length} curly-brace variable${curlyMatches.length === 1 ? '' : 's'}. These will be converted to SurveySparrow's <code>$name</code> syntax on Create Survey — sample: <code>${escHtml(curlyMatches[0])}</code> → <code>${escHtml(curlyToDollar(curlyMatches[0]))}</code>.</div>`
+      : '';
+
     const metaParts = [];
     if (parsed.title) metaParts.push(`Title: <b>${escHtml(parsed.title)}</b>`);
     metaParts.push(`Type: <b>${escHtml(parsed.surveyType || 'ClassicForm')}</b>`);
@@ -4741,7 +4763,7 @@ Now convert the uploaded document or pasted content into this format.`;
 
     previewEl.innerHTML = `<details class="parse-preview" open>
       <summary>Parsed survey preview — ${parsed.questions.length} question${parsed.questions.length !== 1 ? 's' : ''} detected</summary>
-      ${lowWarningHtml}${metaHtml}${tableHtml}
+      ${lowWarningHtml}${curlyNoticeHtml}${metaHtml}${tableHtml}
     </details>`;
 
     if (hasLow) playErrorChime(); else playSuccessChime();
@@ -4753,6 +4775,20 @@ Now convert the uploaded document or pasted content into this format.`;
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
+  }
+
+  /* Mirrors the server-side normalizePlaceholdersInString — used only for the
+     Validate-format preview banner so we can show the user exactly what the
+     backend will rewrite. */
+  function curlyToDollar(s) {
+    if (typeof s !== 'string') return '';
+    return s.replace(/\{\{\s*([A-Za-z][A-Za-z0-9 _\-]*)\s*\}\}/g, (m, raw) => {
+      const key = raw.trim().toLowerCase()
+        .replace(/[ \-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      return key ? `$${key}` : m;
+    });
   }
 
   const CRED_KEY_REGION = 'ss_region';

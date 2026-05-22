@@ -193,6 +193,37 @@ The Formatting Helper modal contains the full prompt you can drop into ChatGPT o
 
 ---
 
+## Variables
+
+SurveySparrow references survey-context variables (the customer's name, a ticket ID, etc.) with **dollar-prefix syntax**:
+
+```
+$customer_name
+$account_name
+$ticket_id
+$customer_email
+```
+
+You can use these anywhere inside your structured prompt — Survey Title, Welcome Title / Description, Question text, Question descriptions, Options, Thank You Message / Description.
+
+The **Variables** card lets you register variables that will be attached to every survey you create in the session (single Add or Bulk paste). Each saved variable shows up as `$name` and the Copy button copies `$name` to your clipboard, ready to paste into the structured prompt.
+
+**Legacy `{{name}}` is accepted on input.** If you paste a prompt from older docs or an LLM that uses double-curly placeholders like `{{customer_name}}`, Weave converts them to `$customer_name` automatically just before sending the payload to SurveySparrow. The Validate Format preview shows a small blue note when curly-brace variables are detected so you know the conversion will happen, and the Create Survey result lists how many were converted.
+
+Rules for the conversion:
+
+| Input                          | Stored / sent as     |
+|--------------------------------|----------------------|
+| `{{customer_name}}`            | `$customer_name`     |
+| `{{ customer_name }}`          | `$customer_name`     |
+| `{{ customer name }}`          | `$customer_name`     |
+| `{{Customer-Email}}`           | `$customer_email`    |
+| `{{ ticket_id }}`              | `$ticket_id`         |
+
+Spaces and hyphens become underscores; the key is lowercased; invalid characters are dropped. Anything that doesn't look like a simple placeholder (e.g. JSON-style `{{ ... }}` containing punctuation) is left untouched.
+
+---
+
 ## Local storage keys
 
 | Key                                | Purpose                                                  |

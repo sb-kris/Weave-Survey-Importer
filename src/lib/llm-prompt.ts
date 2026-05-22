@@ -39,6 +39,7 @@ OUTPUT RULES (non-negotiable)
 - For Bipolar matrix rows use \`Left label | Right label\`.
 - For Constant sum use Options, not Rows.
 - If the source describes image-based answer choices, convert them into text options.
+- Variables use SurveySparrow's dollar-prefix syntax (e.g. $customer_name, $ticket_id). Never wrap variables in double curly braces — if the source uses {{customer_name}}, output $customer_name instead.
 
 TOP-LEVEL FIELDS
 Survey Title:
@@ -82,7 +83,7 @@ function buildUserPrompt(surveyType: string, rawText: string, options: Formatter
     options.removeDuplicates     ? "- Remove obvious duplicate questions." : "",
     options.includeSections      ? "- Include sections when the source content has clear groupings; otherwise omit them." : "- Do not include sections.",
     options.includeWelcomeThankYou ? "- Include welcome and thank-you text if the source has them." : "- Do not include welcome / thank-you text.",
-    options.preserveVariables    ? "- Preserve placeholders like {{customer_name}} verbatim. Do not rename or remove them." : "",
+    options.preserveVariables    ? "- Use SurveySparrow's dollar-prefix variable syntax: $customer_name, $account_name, $ticket_id, $customer_email. If the source uses {{customer_name}} double-curly placeholders, CONVERT them to $customer_name in the output. Variable keys are lowercase snake_case." : "",
   ].filter(Boolean).join("\n");
 
   return `Selected Survey Type: ${surveyType}
