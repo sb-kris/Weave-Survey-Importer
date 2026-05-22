@@ -4,8 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Weave · Survey Importer</title>
-  <!-- Inline-SVG favicon — no asset dependency, works on Netlify/Render/local. -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2032%2032%22%3E%3Crect%20width=%2232%22%20height=%2232%22%20rx=%228%22%20fill=%22%236366f1%22/%3E%3Cpath%20d=%22M7%2010.5l3%2011%203.5-7.5L17%2021.5l3-11%22%20fill=%22none%22%20stroke=%22white%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E" />
+  <link rel="icon" type="image/x-icon" href="/weave-logo.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -117,15 +116,31 @@
       gap: 16px;
     }
     .app-brand { display: flex; align-items: center; gap: 10px; }
-    /* CSS-only brand mark — no external image, so the header renders identically
-       on localhost, Render, and Netlify regardless of how /public/ is served. */
+    /* Brand mark wraps the real /weave-logo.svg. The W-text fallback (rendered
+       by .app-brand-mark::before) sits underneath the image and only becomes
+       visible if the SVG fails to load (e.g. if Netlify isn't configured to
+       serve public/ at the root). */
     .app-brand-mark {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 38px;
-      height: 38px;
+      width: 48px;
+      height: 48px;
       flex-shrink: 0;
+      background: transparent;
+      user-select: none;
+    }
+    .app-brand-mark img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+    /* Fallback W badge: only rendered when the SVG fails to load. The
+       <img>'s onerror handler swaps in this badge so the header still
+       reads as branded on environments where /weave-logo.svg 404s. */
+    .app-brand-mark.fallback {
       background: linear-gradient(135deg, hsl(var(--primary)), color-mix(in oklab, hsl(var(--primary)) 65%, #5b21b6));
       color: hsl(var(--primary-foreground));
       border-radius: 10px;
@@ -134,8 +149,9 @@
       letter-spacing: -0.04em;
       line-height: 1;
       box-shadow: 0 1px 0 hsl(0 0% 100% / 0.18) inset, 0 6px 18px hsl(var(--primary) / 0.28);
-      user-select: none;
     }
+    .app-brand-mark.fallback img { display: none; }
+    .app-brand-mark.fallback::after { content: "W"; }
     .app-brand-text { line-height: 1.1; }
     .app-brand-title {
       font-size: 20px;
@@ -1365,7 +1381,9 @@
 <header class="app-header">
   <div class="app-header-inner">
     <div class="app-brand">
-      <span class="app-brand-mark" aria-hidden="true">W</span>
+      <span class="app-brand-mark" aria-hidden="true">
+        <img src="/weave-logo.svg" alt="" onerror="this.parentElement.classList.add('fallback')" />
+      </span>
       <div class="app-brand-text">
         <div class="app-brand-title">Weave</div>
         <div class="app-brand-sub">Survey Importer</div>

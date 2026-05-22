@@ -1,0 +1,24 @@
+# Netlify build config for Weave Survey Importer.
+#
+# The Express server (src/) serves index.html from the project root and the
+# static assets (logos, sounds) from public/. On Netlify we ship a static
+# bundle only — the publish directory is public/, and the root index.html
+# is copied into it at build time so /weave-logo.svg, /weave-logo.ico,
+# /surveysparrow-symbol.svg, and /sounds/*.mp3 all resolve directly.
+#
+# The /api/* paths are NOT handled here — point Weave's UI at a separately
+# hosted API (Render service) if you need create-survey, folders, etc. to
+# work from the Netlify deploy.
+
+[build]
+  command = "cp index.html public/index.html"
+  publish = "public"
+
+# Single-page-app style fallback: any unknown path serves index.html so the
+# UI still loads if a user deep-links somewhere. The static asset paths
+# (weave-logo.svg, weave-logo.ico, sounds/*.mp3) match files in the publish
+# dir and take precedence over this rewrite.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
