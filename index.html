@@ -2243,7 +2243,10 @@ Required: No"></textarea>
   function getStoredMode() {
     const v = localStorage.getItem(MODE_KEY);
     if (v === 'light' || v === 'dark') return v;
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    // First-time visitors always land in light mode, even if their OS
+    // is set to dark. Once they pick a mode it's persisted to MODE_KEY
+    // and respected on every subsequent visit.
+    return 'light';
   }
 
   function applyTheme(theme, mode, animate = false) {
