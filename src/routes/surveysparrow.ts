@@ -441,24 +441,63 @@ router.post("/create-survey", async (req, res) => {
         resolvedChoiceId = sourceEntry.choiceMap[lookup] ?? null;
       }
 
-      // Payload shape matches the verified-working sample exactly:
-      //   { id, displayLogic: { version: "1", logics: [{ ...full entry, choice_id }] } }
+      // Payload shape for PUT /v3/questions/{question_id} — verified against a
+      // live test account on 2026-05-25 by mirroring a UI-configured rule:
+      //
+      //   {
+      //     survey_id: <number>,
+      //     question: {
+      //       text: <existing question text>,   // REQUIRED — without it the
+      //                                          // server returns 500. The Joi
+      //                                          // schema validates but the
+      //                                          // update handler crashes.
+      //       display_logic: {                  // snake_case — camelCase is rejected
+      //         logics: [{
+      //           join_condition: "and"|"or",
+      //           type: "question",             // "param" et al also accepted
+      //           comparator: <string>,
+      //           question_id: <number>,
+      //           value: <string>
+      //         }]
+      //       }
+      //     }
+      //   }
+      //
+      // Fields the GET response shows but the PUT input REJECTS (server adds
+      // them post-write): `version`, `is_variable`, `is_default_variable`,
+      // `choice_id`. Including any of these returns 400 "not allowed".
+      //
+      // For MultiChoice / Dropdown sources, sending the numeric choice ID as
+      // `value` (stringified) makes the server route it into `choice_id`
+      // automatically — verified: PUT with value:"1007022137" stored as
+      // choice_id: 1007022137, value: "".
+      //
+      // For YesNo sources, `value` must be the lowercase string "true" /
+      // "false", not a JSON boolean.
+      //
+      // NOTE: PUT appends to display_logic.logics rather than replacing it.
+      // Safe for our flow because every question is freshly created with an
+      // empty logics array.
+      const isChoiceSource = sourceType === "MultiChoice" || sourceType === "Dropdown";
+      const logicValue = isChoiceSource && resolvedChoiceId !== null
+        ? String(resolvedChoiceId)
+        : typeof mappedValue === "string" ? mappedValue : String(mappedValue);
+
       const logicPayload = {
-        id: Number(targetEntry.id),
-        displayLogic: {
-          version: "1",
-          logics: [
-            {
-              join_condition: "and",
-              type: "question",
-              value: mappedValue,
-              comparator,
-              question_id: Number(sourceEntry.id),
-              isVariable: false,
-              isDefaultVariable: false,
-              choice_id: resolvedChoiceId,
-            },
-          ],
+        survey_id: Number(surveyId),
+        question: {
+          text: q.text,
+          display_logic: {
+            logics: [
+              {
+                join_condition: "and",
+                type: "question",
+                comparator,
+                question_id: Number(sourceEntry.id),
+                value: logicValue,
+              },
+            ],
+          },
         },
       };
       const logicEndpoint = `/v3/questions/${targetEntry.id}`;
@@ -1822,11 +1861,13 @@ function mapDisplayLogicComparator(sourceType: string, operator: string, rawValu
     return                                  { comparator: "equalToForRating",     value: String(rawValue) };
   }
   if (sourceType === "YesNo") {
-    // SurveySparrow expects a raw boolean, not a stringified one — verified
-    // against the working PUT payload sample.
-    const boolValue = rawValue.trim().toLowerCase() === "yes";
-    if (op.includes("not")) return { comparator: "notEqualToForYesNo", value: boolValue };
-    return                          { comparator: "equalToForYesNo",    value: boolValue };
+    // Verified against a live PUT 2026-05-25: SurveySparrow expects the value
+    // as a lowercase string "true" / "false", NOT a JSON boolean. Sending a
+    // boolean trips the validator with `value must be a string`.
+    const yes = rawValue.trim().toLowerCase() === "yes";
+    const v = yes ? "true" : "false";
+    if (op.includes("not")) return { comparator: "notEqualToForYesNo", value: v };
+    return                          { comparator: "equalToForYesNo",    value: v };
   }
   if (sourceType === "OpinionScale") {
     if (op.includes("less than"))    return { comparator: "lessThanForScale",    value: String(rawValue) };
