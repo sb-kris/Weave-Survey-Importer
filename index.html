@@ -2025,6 +2025,10 @@ Required: No"></textarea>
         <li>Thank You Message and Thank You Description</li>
       </ul>
       <p style="margin-top:8px">If your source document already uses <code>{{customer_name}}</code> placeholders, Weave converts them to <code>$customer_name</code> automatically before sending to SurveySparrow — but new prompts should use <code>$name</code> directly. Use the <b>Variables</b> card to prepare and copy placeholders.</p>
+
+      <p style="margin-top:16px;font-weight:600">Cleanup prompt <span id="gptPromptType" style="font-weight:500;color:hsl(var(--muted-foreground))"></span></p>
+      <p style="margin-top:4px;font-size:13px;color:hsl(var(--muted-foreground))">This prompt is tailored to your selected <b>Survey Type</b>. Change the Survey Type dropdown to update it. You can copy it with the button below, or select and copy directly from the box.</p>
+      <textarea id="gptPromptPreview" readonly spellcheck="false" onclick="this.select()" style="margin-top:8px;width:100%;height:160px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5;padding:10px 12px;border:1px solid hsl(var(--border));border-radius:8px;background:hsl(var(--muted) / 0.4);color:hsl(var(--foreground));white-space:pre"></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn-modal-primary" id="copyGptBtn" onclick="copyGptPrompt()" type="button">Copy GPT Cleanup Prompt</button>
@@ -3993,8 +3997,24 @@ Now convert the uploaded document or pasted content into this format.`;
 
   function openFormattingHelper() {
     stopHelperPulse();
+    refreshGptPromptPreview();
     document.getElementById('formattingModal').classList.add('open');
     document.body.style.overflow = 'hidden';
+  }
+
+  /* Keep the in-modal cleanup-prompt preview in sync with the Survey Type
+     dropdown. The preview doubles as a manual-copy fallback when the async
+     Clipboard API is unavailable (unfocused document, restrictive permission
+     policy, etc.). */
+  function refreshGptPromptPreview() {
+    const surveyType = (document.getElementById('surveyType')?.value || 'ClassicForm').trim();
+    const preview = document.getElementById('gptPromptPreview');
+    if (preview) preview.value = buildGptCleanupPrompt(surveyType);
+    const label = document.getElementById('gptPromptType');
+    if (label) {
+      const friendly = { ClassicForm: 'Classic Form', NPS: 'NPS', CSAT: 'CSAT', CES: 'CES' }[surveyType] || surveyType;
+      label.textContent = '— ' + friendly;
+    }
   }
 
   /* Custom collapsible for "Supported type handling".
@@ -4357,18 +4377,53 @@ Now convert the uploaded document or pasted content into this format.`;
   }
 
   function copyGptPrompt() {
+    // Always rebuild from the current Survey Type, then mirror into the visible
+    // preview so the textarea fallback copies the exact same text.
+    refreshGptPromptPreview();
     const surveyType = (document.getElementById('surveyType')?.value || 'ClassicForm').trim();
     const promptText = buildGptCleanupPrompt(surveyType);
-    navigator.clipboard.writeText(promptText).then(() => {
+
+    const showCopied = () => {
       const btn = document.getElementById('copyGptBtn');
+      if (!btn) return;
       btn.textContent = 'Copied!';
       btn.classList.add('copied');
       setTimeout(() => {
         btn.textContent = 'Copy GPT Cleanup Prompt';
         btn.classList.remove('copied');
       }, 2500);
-    }).catch(() => {
-      alert('Could not copy to clipboard. Please copy manually from the prompt text.');
+    };
+
+    // Synchronous execCommand fallback for when the async Clipboard API is
+    // unavailable or rejects (document not focused, permissions policy, older
+    // browsers). Selects the visible preview textarea and copies from it.
+    const fallbackCopy = () => {
+      const ta = document.getElementById('gptPromptPreview');
+      if (!ta) return false;
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.setSelectionRange(0, 0);
+      ta.blur();
+      return ok;
+    };
+
+    const tryAsync = (navigator.clipboard && navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(promptText)
+      : Promise.reject(new Error('Clipboard API unavailable'));
+
+    tryAsync.then(showCopied).catch(() => {
+      if (fallbackCopy()) {
+        showCopied();
+      } else {
+        // Both paths failed — leave the preview selected so the user can copy
+        // manually with Cmd/Ctrl+C, and tell them where it is.
+        const ta = document.getElementById('gptPromptPreview');
+        if (ta) { ta.focus(); ta.select(); }
+        alert('Could not copy automatically. The prompt is selected in the box above — press Cmd/Ctrl + C to copy it.');
+      }
     });
   }
 
