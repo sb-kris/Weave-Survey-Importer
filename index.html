@@ -1811,17 +1811,13 @@
           <label for="variableType">Type</label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
-            <div class="tooltip-bubble">UI type hint. SurveySparrow stores everything as String, Number, or Date — but Email / Phone / URL / Boolean help the bulk-paste parser infer the right type and read better in your saved list.</div>
+            <div class="tooltip-bubble">SurveySparrow stores variables as one of three types: String, Number, or Date. Pick the one that matches the value you'll pass in.</div>
           </div>
         </div>
         <select id="variableType">
           <option value="STRING" selected>String</option>
-          <option value="EMAIL">Email</option>
-          <option value="PHONE">Phone</option>
           <option value="NUMBER">Number</option>
           <option value="DATE">Date</option>
-          <option value="BOOLEAN">Boolean</option>
-          <option value="URL">URL</option>
         </select>
       </div>
       <button type="button" id="variableAddBtn" class="btn-secondary">Add</button>
@@ -2408,20 +2404,27 @@ Required: No"></textarea>
      after the survey is created, if the list is non-empty, we POST it to
      /api/variables-batch and append the result to the debug log. */
   const VARIABLES_KEY = 'weave_variables';
-  /* UI-level type set. Richer than the SurveySparrow API surface (which only
-     accepts STRING/NUMBER/DATE) — we surface these for better UX and inference
-     and translate to the API set in apiVariableType() at send time. */
-  const UI_VARIABLE_TYPES = ['STRING', 'EMAIL', 'PHONE', 'NUMBER', 'DATE', 'BOOLEAN', 'URL'];
+  /* SurveySparrow variables accept exactly three types: STRING / NUMBER / DATE.
+     We surface only these in the UI so the picker matches what actually gets
+     stored on SurveySparrow's side — no ambiguous UI-only types that silently
+     collapse to STRING. */
+  const UI_VARIABLE_TYPES = ['STRING', 'NUMBER', 'DATE'];
   const ALLOWED_VARIABLE_TYPES = new Set(UI_VARIABLE_TYPES);
   const VARIABLE_TYPE_LABELS = {
-    STRING: 'String', EMAIL: 'Email', PHONE: 'Phone', NUMBER: 'Number',
-    DATE: 'Date', BOOLEAN: 'Boolean', URL: 'URL',
+    STRING: 'String', NUMBER: 'Number', DATE: 'Date',
   };
 
-  /* Translate the rich UI type to the SurveySparrow API type. EMAIL / PHONE /
-     URL / BOOLEAN are all stored as STRING on SurveySparrow's side — the UI
-     type just helps the user pick something meaningful and drives default
-     inference during bulk paste. */
+  /* Legacy UI types (EMAIL / PHONE / URL / BOOLEAN) from earlier versions of
+     the app get folded back into STRING / NUMBER / DATE. Used when loading
+     from localStorage so old saved variables don't break. */
+  const LEGACY_TYPE_MAP = { EMAIL: 'STRING', PHONE: 'STRING', URL: 'STRING', BOOLEAN: 'STRING' };
+  function coerceVariableType(t) {
+    if (typeof t !== 'string') return 'STRING';
+    if (ALLOWED_VARIABLE_TYPES.has(t)) return t;
+    return LEGACY_TYPE_MAP[t] || 'STRING';
+  }
+
+  /* Translate the UI type to the SurveySparrow API type — 1:1 now. */
   function apiVariableType(t) {
     if (t === 'NUMBER') return 'NUMBER';
     if (t === 'DATE')   return 'DATE';
@@ -2431,20 +2434,15 @@ Required: No"></textarea>
   function variableTypeLabel(t) { return VARIABLE_TYPE_LABELS[t] || t; }
 
   /* Inference rules for bulk paste — used when no explicit type is given.
-     Matches on WHOLE underscore/dash-separated segments so "account_name"
-     doesn't pick up NUMBER from "count" inside "ac*count*", and
-     "linkedin_handle" doesn't pick up URL from "link". JS \b doesn't help
-     here because `_` counts as a word char, so a custom split is used. */
+     Only NUMBER and DATE have distinguishing signals; everything else defaults
+     to STRING. Matches on WHOLE underscore/dash/space-separated segments so
+     "account_name" doesn't pick up NUMBER from "count" inside "ac*count*". */
   function inferVariableType(key) {
     const k = (key || '').toLowerCase();
     const segments = k.split(/[_\-\s]+/).filter(Boolean);
     const has = (...words) => segments.some((s) => words.includes(s));
-    if (has('email'))                                                 return 'EMAIL';
-    if (has('phone', 'mobile'))                                       return 'PHONE';
     if (has('date'))                                                  return 'DATE';
-    if (has('url', 'link', 'website'))                                return 'URL';
     if (has('count', 'score', 'amount', 'number', 'qty', 'quantity')) return 'NUMBER';
-    if (/^is_|^has_/.test(k) || has('enabled'))                       return 'BOOLEAN';
     return 'STRING';
   }
 
@@ -2479,13 +2477,14 @@ Required: No"></textarea>
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       // Filter out anything malformed; normalize the shape to { name, label, type }.
+      // Legacy UI types (EMAIL / PHONE / URL / BOOLEAN) get folded back to
+      // STRING via coerceVariableType so old saved lists keep loading.
       return parsed
-        .filter((v) => v && typeof v.name === 'string' && v.name.trim() &&
-                      typeof v.type === 'string' && ALLOWED_VARIABLE_TYPES.has(v.type))
+        .filter((v) => v && typeof v.name === 'string' && v.name.trim() && typeof v.type === 'string')
         .map((v) => ({
           name: v.name,
           label: typeof v.label === 'string' && v.label.trim() ? v.label : humanizeKey(v.name),
-          type: v.type,
+          type: coerceVariableType(v.type),
         }));
     } catch (_) { return []; }
   }
@@ -3918,18 +3917,32 @@ Now convert the uploaded document or pasted content into this format.`;
       return [
         'Selected survey type: CES',
         '',
-        'IMPORTANT — this is a CES (Customer Effort Score) survey. SurveySparrow allows AT MOST ONE CESFeedback question per survey, and it MUST come directly after the CES score question. Any open-text or "reason" question that appears later in the survey must use Type: Long text, NEVER Type: CESFeedback. Putting CESFeedback anywhere else (or more than once) will cause SurveySparrow to reject it with "feedback question already exists for survey".',
+        'IMPORTANT — this is a CES (Customer Effort Score) survey. The effort/ease score MUST be emitted as an Opinion Scale question with a 1–7 scale and the labels "Very Easy" (min) and "Very Difficult" (max). Do NOT use Type: CES. Every effort-related, ease-of-resolution, or ease-of-use question in this survey must use the same Opinion Scale 1–7 with the same labels.',
+        '',
+        'NOTE for the person running the importer: to get these custom "Very Easy" / "Very Difficult" labels on the created survey, set the Survey Type dropdown in the importer to ClassicForm before creating the survey. If you leave it on CES, SurveySparrow will auto-create its own native CES score question alongside the OpinionScale Q1 (a duplicate score), and the native one uses SurveySparrow default labels which cannot be overridden via the API.',
+        '',
+        'SurveySparrow allows AT MOST ONE CESFeedback question per survey, and it MUST come directly after the score question. Any open-text or "reason" question that appears later in the survey must use Type: Long text, NEVER Type: CESFeedback. Putting CESFeedback anywhere else (or more than once) will cause SurveySparrow to reject it with "feedback question already exists for survey". (Note: CESFeedback is only accepted when the importer\'s Survey Type is CES — if you follow the ClassicForm recommendation above, downgrade the Q2 follow-up to Type: Long text instead.)',
         '',
         'Strict structure for this survey type:',
         '',
-        '1. Emit the CES score question first as Q1 with Type: CES. (Required position marker — the importer drops it because the effort score is implicit in the CES survey type, but it uses Q1 as the marker for the feedback follow-up.)',
+        '1. Emit the CES score question first as Q1 with:',
+        '   Type: Opinion scale',
+        '   Scale: 1-7',
+        '   Min label: Very Easy',
+        '   Max label: Very Difficult',
+        '   (Required position marker — the importer uses Q1 as the anchor for the feedback follow-up.)',
         '2. ONLY IF the source has a reason / explanation follow-up to the score, emit it IMMEDIATELY as Q2 with Type: CESFeedback and Low effort / Neutral / High effort fields. If only one generic follow-up text is given, reuse it in all three buckets. If there is no follow-up, omit Q2.',
         '3. EVERY other open-text, "share", "comment", or reason-like question (Q3 onward) must use Type: Long text or Type: Short text — NEVER Type: CESFeedback.',
+        '4. Any additional effort/ease-related scoring questions in the survey (not just Q1) must also use Type: Opinion scale with Scale: 1-7, Min label: Very Easy, Max label: Very Difficult. Never emit Type: CES anywhere in the output.',
         '',
         'Skeleton:',
         '',
         'Q1. How easy was it to resolve your issue?',
-        'Type: CES',
+        'Type: Opinion scale',
+        'Scale: 1-7',
+        'Min label: Very Easy',
+        'Max label: Very Difficult',
+        'Required: Yes',
         '',
         'Q2. Tell us more about your experience',
         'Type: CESFeedback',

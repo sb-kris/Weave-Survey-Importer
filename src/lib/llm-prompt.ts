@@ -106,7 +106,17 @@ function surveyTypeGuidance(surveyType: string): string {
     case "CSAT":
       return "Keep Survey Type: CSAT. Focus the survey on the satisfaction score, the reason for the score, and customer context. Use Type: CSAT for the score question.";
     case "CES":
-      return "Keep Survey Type: CES. Focus the survey on the effort / ease score, the reason for the score, and customer context. Use Type: CES for the score question.";
+      return [
+        "Keep Survey Type: CES. Focus the survey on the effort / ease score, the reason for the score, and customer context.",
+        "",
+        "IMPORTANT — DO NOT use Type: CES anywhere. Emit the CES score question, and every other effort/ease-related scoring question in the survey, as an Opinion Scale question with:",
+        "  Type: Opinion scale",
+        "  Scale: 1-7",
+        "  Min label: Very Easy",
+        "  Max label: Very Difficult",
+        "",
+        "The CESFeedback follow-up (Low effort / Neutral / High effort) is still allowed exactly once, directly after the score question. All other open-text follow-ups must use Type: Long text.",
+      ].join("\n");
     case "ClassicForm":
     default:
       return "Keep Survey Type: ClassicForm. Standard import. NPS / CSAT / CES question types are allowed and the importer converts them to compatible question types automatically.";
