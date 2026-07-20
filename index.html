@@ -275,12 +275,12 @@
       margin: 0 auto;
       padding: 28px 24px 64px;
     }
-    .hero { margin-bottom: 28px; }
+    .hero { margin-bottom: 18px; }
     .hero h1 {
-      font-size: clamp(30px, 4.4vw, 42px);
+      font-size: clamp(23px, 3vw, 30px);
       font-weight: 600;
-      letter-spacing: -0.04em;
-      line-height: 1.02;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
       color: hsl(var(--foreground));
     }
     .hero h1 .hero-accent {
@@ -294,11 +294,11 @@
       letter-spacing: -0.015em;
     }
     .hero .lede {
-      margin-top: 12px;
-      font-size: 14.5px;
+      margin-top: 7px;
+      font-size: 13.5px;
       line-height: 1.5;
       color: hsl(var(--muted-foreground));
-      max-width: 640px;
+      max-width: 620px;
       letter-spacing: -0.005em;
     }
     .hero .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -572,6 +572,35 @@
     #result.success { border-color: hsl(var(--success) / 0.4); background: hsl(var(--success) / 0.05); }
     #result.error   { border-color: hsl(var(--destructive) / 0.4); background: hsl(var(--destructive) / 0.05); }
     #result.warning { border-color: hsl(var(--warning) / 0.4); background: hsl(var(--warning) / 0.05); }
+    /* Elevated outcome header: icon + title + scannable stat tiles */
+    .result-head { display: flex; align-items: center; gap: 11px; }
+    .result-icon {
+      flex-shrink: 0;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .result-icon svg { width: 16px; height: 16px; }
+    .result-icon-success { background: hsl(var(--success) / 0.15); color: hsl(var(--success)); }
+    .result-icon-warning { background: hsl(var(--warning) / 0.18); color: hsl(var(--warning)); }
+    .result-icon-error   { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
+    .result-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+    .result-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .stat-tile {
+      display: flex; flex-direction: column; gap: 1px;
+      padding: 7px 13px 8px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 9px;
+      background: hsl(var(--card));
+      min-width: 78px;
+    }
+    .stat-val { font-size: 18px; font-weight: 650; letter-spacing: -0.02em; font-feature-settings: 'tnum'; line-height: 1.1; color: hsl(var(--foreground)); }
+    .stat-lbl { font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+    .stat-tile.is-danger { border-color: hsl(var(--destructive) / 0.4); background: hsl(var(--destructive) / 0.06); }
+    .stat-tile.is-danger .stat-val { color: hsl(var(--destructive)); }
+    .stat-tile.is-warn { border-color: hsl(var(--warning) / 0.4); background: hsl(var(--warning) / 0.06); }
+    .result-subline { margin-top: 10px; font-size: 12px; color: hsl(var(--muted-foreground)); font-feature-settings: 'tnum'; }
+    .result-subline b { color: hsl(var(--foreground)); font-weight: 600; }
     #result strong {
       display: block;
       font-size: 16px;
@@ -1720,6 +1749,51 @@
     }
     @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 
+    /* ─────────── Sticky action dock ─────────── */
+    .action-dock {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 200;
+      background: hsl(var(--card) / 0.9);
+      -webkit-backdrop-filter: saturate(180%) blur(10px);
+      backdrop-filter: saturate(180%) blur(10px);
+      border-top: 1px solid hsl(var(--border));
+      box-shadow: 0 -8px 24px hsl(var(--foreground) / 0.07);
+      padding: 12px 24px;
+    }
+    .action-dock-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .action-dock-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .action-dock-hint {
+      font-size: 11.5px;
+      color: hsl(var(--muted-foreground));
+      opacity: 0.8;
+      white-space: nowrap;
+    }
+    .action-dock .btn-validate,
+    .action-dock .btn-primary { flex-shrink: 0; }
+    /* Keep page content clear of the fixed dock. */
+    body { padding-bottom: 84px; }
+    @media (max-width: 640px) {
+      .action-dock { padding: 10px 14px; }
+      .action-dock-hint { display: none; }
+      .action-dock-inner { gap: 8px; }
+      .action-dock #statusMsg { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      body { padding-bottom: 76px; }
+    }
+
     /* footer note */
     .page-footer {
       max-width: 820px;
@@ -1829,13 +1903,7 @@
 <main class="container">
   <section class="hero" data-reveal>
     <h1>Ship surveys <span class="hero-accent">in a moment.</span></h1>
-    <p class="lede">Paste structured text and the importer creates a SurveySparrow draft with sections, every question type, welcome and thank-you screens, and optional simple display logic.</p>
-    <div class="meta">
-      <span class="pill pill-disconnected" id="heroConnectionPill"><span class="pill-dot"></span><span class="pill-label">Disconnected</span></span>
-      <span class="pill pill-info">ClassicForm</span>
-      <span class="pill pill-info">NPS / CES / CSAT</span>
-      <span class="pill pill-info">Questions / Sections / Welcome &amp; Thank you page</span>
-    </div>
+    <p class="lede">Paste structured text — the importer builds a SurveySparrow draft with sections, every question type, welcome &amp; thank-you screens, and optional display logic.</p>
   </section>
 
   <div class="card" data-reveal>
@@ -2198,13 +2266,7 @@ Q6. What can we improve?
 Type: Long text
 Required: No"></textarea>
     </div>
-    <div class="btn-row" style="margin-top:14px">
-      <button class="btn-validate" id="validateBtn" onclick="validateFormat()" type="button">Validate format</button>
-      <button class="btn-primary" id="createBtn" onclick="createSurvey()" type="button">Create Survey</button>
-      <span class="status-msg" id="statusMsg"></span>
-      <span class="status-msg" style="margin-left:auto;opacity:0.75">Ctrl/⌘ + Enter in the prompt validates</span>
-    </div>
-    <div style="margin-top:10px;font-size:12px;color:hsl(var(--muted-foreground))">Validate the format first. This app creates a SurveySparrow draft. Review the final survey inside SurveySparrow before sending it to respondents.</div>
+    <div style="margin-top:12px;font-size:12px;color:hsl(var(--muted-foreground))">Validate the format first. This app creates a SurveySparrow draft — review it inside SurveySparrow before sending to respondents.</div>
     <div id="preflightNote"></div>
     <div id="rateProgressBanner" class="validate-banner" style="display:none"></div>
     <div id="parsePreview"></div>
@@ -2219,6 +2281,19 @@ Required: No"></textarea>
   <div id="result"></div>
   <div id="debug"></div>
 </main>
+
+<!-- Sticky action dock: primary actions stay reachable without scrolling back
+     to the prompt. Same button ids/handlers as before, just relocated. -->
+<div class="action-dock" id="actionDock">
+  <div class="action-dock-inner">
+    <span class="status-msg" id="statusMsg"></span>
+    <div class="action-dock-actions">
+      <span class="action-dock-hint">⌘/Ctrl + Enter validates</span>
+      <button class="btn-validate" id="validateBtn" onclick="validateFormat()" type="button">Validate format</button>
+      <button class="btn-primary" id="createBtn" onclick="createSurvey()" type="button">Create Survey</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast-stack" id="toastStack" role="status" aria-live="polite"></div>
 
@@ -3670,16 +3745,54 @@ Required: No"></textarea>
       resultEl.className = hasFailed ? 'warning' : (hasFallback ? 'warning' : (hasCompatible ? 'warning' : 'success'));
 
       let title = 'Survey created successfully';
-      if (hasFailed)          title = 'Survey created — some questions failed';
-      else if (hasFallback)   title = 'Survey created — some questions used fallback types';
-      else if (hasCompatible) title = 'Survey created — some question types were converted for ClassicForm compatibility';
+      let statusKind = 'success';
+      if (hasFailed)          { title = 'Created — some questions failed'; statusKind = 'error'; }
+      else if (hasFallback)   { title = 'Created — some questions used fallback types'; statusKind = 'warning'; }
+      else if (hasCompatible) { title = 'Created — some types converted for ClassicForm'; statusKind = 'warning'; }
 
       const appBaseUrl = (document.getElementById('appBaseUrl')?.value || '').trim().replace(/\/$/, '');
       const surveyUrl = appBaseUrl ? `${appBaseUrl}/builder/edit/${data.surveyId}` : null;
 
-      let html = `<strong>${title}</strong>`;
+      const RESULT_ICONS = {
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      };
+      RESULT_ICONS.error = RESULT_ICONS.warning;
+
+      // Number tile (animates from 0) and text tile (literal value).
+      const numTile = (val, lbl, cls) => `<div class="stat-tile ${cls || ''}"><span class="stat-val" data-animated-number data-value="${val}">0</span><span class="stat-lbl">${lbl}</span></div>`;
+      const txtTile = (val, lbl, cls) => `<div class="stat-tile ${cls || ''}"><span class="stat-val">${val}</span><span class="stat-lbl">${lbl}</span></div>`;
+
+      let html = `<div class="result-head"><span class="result-icon result-icon-${statusKind}">${RESULT_ICONS[statusKind]}</span><div class="result-title">${title}</div></div>`;
+
+      // Scannable outcome tiles — the numbers a user cares about, at a glance.
+      const failedCount = qResults.filter(q => q.status === 'failed').length;
+      const tiles = [ numTile(data.questionsCreated, 'Questions') ];
+      if ((data.sectionsCreated || 0) > 0) tiles.push(numTile(data.sectionsCreated, 'Sections'));
+      if (displayLogicEnabled) {
+        const dl = data.displayLogic || { attempted: 0, succeeded: data.logicsApplied || 0, failed: 0 };
+        const attempted = Number(dl.attempted || 0);
+        const succeeded = Number(dl.succeeded || 0);
+        if (attempted > 0) tiles.push(txtTile(`${succeeded}/${attempted}`, 'Logic', dl.failed > 0 ? 'is-warn' : ''));
+      }
+      if (failedCount > 0) tiles.push(txtTile(String(failedCount), 'Failed', 'is-danger'));
+      html += `<div class="result-stats">${tiles.join('')}</div>`;
+
+      // Secondary detail line: survey ID + type-handling breakdown.
+      const enrichedCount = data.enrichedCount || 0;
+      const compatCount = data.compatibleCount || 0;
+      const fallbackCount = data.fallbackCount || 0;
+      let sub = `Survey ID <b>${escHtml(String(data.surveyId))}</b>`;
+      const extra = [];
+      if (enrichedCount > 0) extra.push(`${enrichedCount} enriched`);
+      if (compatCount > 0)   extra.push(`${compatCount} converted`);
+      if (fallbackCount > 0) extra.push(`${fallbackCount} fallback`);
+      if (!displayLogicEnabled) extra.push('display logic skipped');
+      if (extra.length) sub += ` &nbsp;·&nbsp; ${extra.join(' · ')}`;
+      html += `<div class="result-subline">${sub}</div>`;
+
       if (surveyUrl) {
-        html += `<div style="margin:10px 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`;
+        html += `<div style="margin:14px 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">`;
         html += `<a href="${escHtml(surveyUrl)}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;font-size:13px;border-radius:8px;line-height:1">`;
         html += `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
         html += `Open in SurveySparrow</a>`;
@@ -3687,36 +3800,6 @@ Required: No"></textarea>
         html += `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
         html += `Copy edit link</button>`;
         html += `</div>`;
-      }
-      html += `<div style="font-size:12.5px;color:hsl(var(--muted-foreground));margin-top:4px;font-feature-settings:'tnum'">`;
-      html += `Survey ID: <b style="color:hsl(var(--foreground))">${escHtml(String(data.surveyId))}</b> &nbsp;·&nbsp; `;
-      html += `Questions: <b data-animated-number data-value="${data.questionsCreated}" style="color:hsl(var(--foreground))">0</b>`;
-      if ((data.sectionsCreated || 0) > 0) {
-        html += ` &nbsp;·&nbsp; Sections: <b data-animated-number data-value="${data.sectionsCreated}" style="color:hsl(var(--foreground))">0</b>`;
-      }
-      if (displayLogicEnabled) {
-        const dl = data.displayLogic || { attempted: 0, succeeded: data.logicsApplied || 0, failed: 0, details: [] };
-        const attempted = Number(dl.attempted || 0);
-        const succeeded = Number(dl.succeeded || 0);
-        if (attempted === 0) {
-          html += ` &nbsp;·&nbsp; Logic: <b style="color:hsl(var(--foreground))">none in prompt</b>`;
-        } else {
-          html += ` &nbsp;·&nbsp; Logic applied: <b data-animated-number data-value="${succeeded}" style="color:hsl(var(--foreground))">0</b>`;
-          html += `<span style="color:hsl(var(--muted-foreground))"> / ${attempted}</span>`;
-        }
-      } else {
-        html += ` &nbsp;·&nbsp; Logic: <b style="color:hsl(var(--foreground))">skipped</b>`;
-      }
-      html += `</div>`;
-      const enrichedCount = data.enrichedCount || 0;
-      const compatCount = data.compatibleCount || 0;
-      const fallbackCount = data.fallbackCount || 0;
-      if (enrichedCount > 0 || compatCount > 0 || fallbackCount > 0) {
-        const statParts = [];
-        if (enrichedCount > 0) statParts.push(`Enriched: <b data-animated-number data-value="${enrichedCount}">0</b>`);
-        if (compatCount > 0) statParts.push(`Compatible: <b data-animated-number data-value="${compatCount}">0</b>`);
-        if (fallbackCount > 0) statParts.push(`Fallback: <b data-animated-number data-value="${fallbackCount}">0</b>`);
-        html += `<div style="margin-top:4px;font-size:11.5px;color:hsl(var(--muted-foreground));font-feature-settings:'tnum'">${statParts.join(' &nbsp;·&nbsp; ')}</div>`;
       }
 
       if (qResults.length > 0) {
