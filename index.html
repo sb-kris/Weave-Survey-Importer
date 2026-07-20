@@ -903,6 +903,10 @@
     }
     .btn-modal-primary:hover { filter: brightness(1.08); }
     .btn-modal-primary.copied { background: hsl(var(--success)); }
+    .btn-modal-primary.destructive {
+      background: hsl(var(--destructive));
+      color: hsl(var(--destructive-foreground));
+    }
     .btn-modal-secondary {
       font-family: inherit;
       font-size: 13px;
@@ -1785,6 +1789,17 @@
             <div class="tooltip-bubble">Saves the respondent's progress even if they don't finish the survey. Sent as <code>settings.partial_submission</code>.</div>
           </div>
         </div>
+        <div class="field" style="margin-top:16px;max-width:220px">
+          <div class="label-row">
+            <label for="apiCallsPerMinute">API calls per minute</label>
+            <div class="tooltip-wrap">
+              <span class="tooltip-icon">?</span>
+              <div class="tooltip-bubble">SurveySparrow defaults to 120 API calls per minute per account. If your account has a confirmed higher limit, raise this value. Requests within a single create are throttled server-side to stay under the cap.</div>
+            </div>
+          </div>
+          <input type="number" id="apiCallsPerMinute" min="1" step="1" value="120" />
+          <p style="font-size:12px;color:hsl(var(--muted-foreground));margin:0;line-height:1.5">SurveySparrow defaults to 120 API calls per minute. Change this only if your account has a confirmed higher limit.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1975,6 +1990,7 @@ Required: No"></textarea>
     </div>
     <div style="margin-top:10px;font-size:12px;color:hsl(var(--muted-foreground))">Validate the format first. This app creates a SurveySparrow draft. Review the final survey inside SurveySparrow before sending it to respondents.</div>
     <div id="preflightNote"></div>
+    <div id="rateProgressBanner" class="validate-banner" style="display:none"></div>
     <div id="parsePreview"></div>
     <div class="checkbox-row">
       <input type="checkbox" id="displayLogic" />
@@ -2031,6 +2047,20 @@ Required: No"></textarea>
       <a class="btn-modal-secondary" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">Open ChatGPT</a>
       <a class="btn-modal-secondary" href="https://claude.ai" target="_blank" rel="noopener noreferrer">Open Claude</a>
       <button class="btn-modal-secondary" onclick="closeFormattingHelper()" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clear all variables confirmation modal -->
+<div class="modal-backdrop" id="clearVariablesModal" onclick="handleClearVariablesBackdropClick(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="clearVariablesTitle">
+    <h3 id="clearVariablesTitle">Clear all variables?</h3>
+    <div class="modal-body">
+      <p>This will remove all variables added in this session.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-secondary" onclick="closeClearVariablesModal()" type="button">Cancel</button>
+      <button class="btn-modal-primary destructive" onclick="confirmClearAllVariables()" type="button">Clear all</button>
     </div>
   </div>
 </div>
@@ -2600,11 +2630,37 @@ Required: No"></textarea>
   }
 
   function clearAllVariables() {
+    // Skip the modal entirely when the list is already empty — matches the
+    // pre-modal behavior and avoids an empty-state confirmation.
     if (loadVariables().length === 0) return;
-    if (!confirm('Remove all variables? They\'ll no longer be attached to surveys you create.')) return;
+    openClearVariablesModal();
+  }
+
+  function openClearVariablesModal() {
+    const m = document.getElementById('clearVariablesModal');
+    if (!m) return;
+    m.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeClearVariablesModal() {
+    const m = document.getElementById('clearVariablesModal');
+    if (!m) return;
+    m.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function handleClearVariablesBackdropClick(e) {
+    if (e.target === document.getElementById('clearVariablesModal')) {
+      closeClearVariablesModal();
+    }
+  }
+
+  function confirmClearAllVariables() {
     saveVariables([]);
     setVariableError('');
     renderVariablesList();
+    closeClearVariablesModal();
   }
 
   /* ─────────── Bulk paste subsection ─────────── */
@@ -2900,7 +2956,7 @@ Required: No"></textarea>
       const res = await fetch(`${BASE}/variables-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ region, apiKey, surveyId: data.surveyId, variables: apiVars }),
+        body: JSON.stringify({ region, apiKey, surveyId: data.surveyId, variables: apiVars, apiCallsPerMinute: getApiRate() }),
       });
       const vData = await res.json().catch(() => ({}));
       const extra = Array.isArray(vData.debugLog) ? vData.debugLog : [];
@@ -2951,6 +3007,52 @@ Required: No"></textarea>
 
   function getRegion() { return document.getElementById('region').value; }
   function getApiKey() { return document.getElementById('apiKey').value.trim(); }
+
+  /* SurveySparrow account-wide API rate cap. Persisted so the value survives
+     page reloads. Blank/NaN/<1 falls back to SurveySparrow's default of 120.
+     Consumed by the three fetch calls that hit the SurveySparrow API and by
+     the client-side progress banner during create-survey. */
+  const API_RATE_KEY = 'weave_api_rate';
+  function getApiRate() {
+    // Spec: blank or invalid input falls back to the safe default (120),
+    // NOT the previously-stored value — so a user who clears the field to
+    // "unset an override" gets the SurveySparrow default, not a stale higher
+    // value they no longer want. localStorage is consulted only when the
+    // input isn't yet in the DOM (very early boot).
+    const el = document.getElementById('apiCallsPerMinute');
+    if (el) {
+      const raw = String(el.value ?? '').trim();
+      if (raw === '') return 120;
+      const v = Number(raw);
+      return Number.isFinite(v) && v >= 1 ? Math.floor(v) : 120;
+    }
+    const stored = Number(localStorage.getItem(API_RATE_KEY));
+    if (Number.isFinite(stored) && stored >= 1) return Math.floor(stored);
+    return 120;
+  }
+  function setApiRate(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v < 1) return;
+    try { localStorage.setItem(API_RATE_KEY, String(Math.floor(v))); } catch (_) {}
+  }
+
+  /* Populate the numeric input from localStorage on load and persist changes.
+     No-op on `change` when the value is blank or <1 — keeps the previous good
+     value in storage so a mid-edit blank doesn't wipe it. */
+  function initApiRateInput() {
+    const el = document.getElementById('apiCallsPerMinute');
+    if (!el) return;
+    const stored = Number(localStorage.getItem(API_RATE_KEY));
+    if (Number.isFinite(stored) && stored >= 1) {
+      el.value = String(Math.floor(stored));
+    }
+    el.addEventListener('change', () => {
+      const v = Number(el.value);
+      if (Number.isFinite(v) && v >= 1) {
+        setApiRate(v);
+      }
+    });
+  }
 
   /* UI-only helper: reflects connection state in the hero pill + connect button.
      Does not touch any API logic — purely visual. On non-connected states it
@@ -3012,7 +3114,7 @@ Required: No"></textarea>
       const res = await fetch(`${BASE}/folders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ region: getRegion(), apiKey })
+        body: JSON.stringify({ region: getRegion(), apiKey, apiCallsPerMinute: getApiRate() })
       });
       // Defensive parse — if the function crashes and returns a non-JSON
       // body (e.g. an HTML gateway error page), we still want to surface
@@ -3156,6 +3258,56 @@ Required: No"></textarea>
     }
   }
 
+  /* Client-side estimator for the server's throttle plan. Mirrors the outbound
+     calls the /create-survey handler makes:
+       - 1 POST /v3/surveys
+       - +N POST /v3/sections (one batch call, but we count it as one)
+       - +N POST /v3/questions (one per question)
+       - +N PUT /v3/questions/{id} for display logic
+       - +2 for NPS/CSAT/CES native score patch (GET + PUT)
+       - +1 for the follow-up /variables-batch when variables are attached
+     Approximate — an over-estimate is friendlier than an under-estimate. */
+  function estimateApiCalls(parsed, surveyType, displayLogicEnabled, variablesCount) {
+    let n = 1; // POST /v3/surveys
+    if (parsed.sections && parsed.sections.length > 0) n += 1; // batch sections call
+    n += parsed.questions.length;
+    if (displayLogicEnabled) {
+      n += parsed.questions.filter((q) => q.showIfRaw).length;
+    }
+    if (surveyType === 'NPS' || surveyType === 'CSAT' || surveyType === 'CES') n += 2;
+    if (variablesCount > 0) n += 1;
+    return n;
+  }
+
+  let _rateBannerTimer = null;
+  let _rateBannerStart = 0;
+
+  function startRateProgressBanner(rate, estimatedCalls) {
+    const el = document.getElementById('rateProgressBanner');
+    if (!el) return;
+    if (estimatedCalls < 20) return; // small surveys skip the banner entirely
+    stopRateProgressBanner();
+    const totalMs = Math.ceil(estimatedCalls * 60000 / Math.max(1, rate));
+    _rateBannerStart = Date.now();
+    el.className = 'validate-banner';
+    el.style.display = 'block';
+    const render = () => {
+      const elapsedS = Math.floor((Date.now() - _rateBannerStart) / 1000);
+      const remainingS = Math.max(0, Math.ceil((totalMs - (Date.now() - _rateBannerStart)) / 1000));
+      el.innerHTML =
+        `<div><b>Processing requests within your API limit of ${rate} calls per minute.</b></div>` +
+        `<div style="margin-top:4px;font-size:12.5px;color:hsl(var(--muted-foreground));font-feature-settings:'tnum'">About ${elapsedS}s elapsed, ~${remainingS}s remaining.</div>`;
+    };
+    render();
+    _rateBannerTimer = setInterval(render, 1000);
+  }
+
+  function stopRateProgressBanner() {
+    if (_rateBannerTimer) { clearInterval(_rateBannerTimer); _rateBannerTimer = null; }
+    const el = document.getElementById('rateProgressBanner');
+    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+  }
+
   async function createSurvey() {
     const apiKey = getApiKey();
     if (!apiKey) { alert('Please enter your API key.'); playErrorChime(); return; }
@@ -3202,6 +3354,18 @@ Required: No"></textarea>
 
     const region = getRegion();
 
+    // Non-blocking progress banner for large surveys. Uses the same parser the
+    // validate-format flow uses so section/question counts match what the
+    // server will process. Silent-fails on parse errors — never blocks create.
+    try {
+      const parsedForBanner = parsePromptJS(prompt);
+      const svType = document.getElementById('surveyType').value;
+      const variablesCount = (loadVariables && Array.isArray(loadVariables()) ? loadVariables().length : 0);
+      const estimated = estimateApiCalls(parsedForBanner, svType, displayLogicEnabled, variablesCount);
+      const rate = getApiRate();
+      startRateProgressBanner(rate, estimated);
+    } catch (_) { /* estimator is best-effort */ }
+
     try {
       const res = await fetch(`${BASE}/create-survey`, {
         method: 'POST',
@@ -3218,6 +3382,7 @@ Required: No"></textarea>
           trackIp: document.getElementById('trackIp').checked,
           trackLocation: document.getElementById('trackLocation').checked,
           partialSubmission: document.getElementById('partialSubmission').checked,
+          apiCallsPerMinute: getApiRate(),
         })
       });
 
@@ -3423,6 +3588,7 @@ Required: No"></textarea>
       btn.disabled = false;
       btn.textContent = 'Create Survey';
       statusMsg.textContent = '';
+      stopRateProgressBanner();
     }
   }
 
@@ -4070,6 +4236,7 @@ Now convert the uploaded document or pasted content into this format.`;
     if (e.key === 'Escape') {
       closeFormattingHelper();
       closeLlmFormatter();
+      closeClearVariablesModal();
     }
   });
 
@@ -4945,6 +5112,7 @@ Now convert the uploaded document or pasted content into this format.`;
       initVariablesCard();
       initFolderSearch();
       initLlmFormatter();
+      initApiRateInput();
     }
   })();
 </script>

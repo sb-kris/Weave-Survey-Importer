@@ -1,7 +1,45 @@
 import { Router, type IRouter } from "express";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { normalizePlaceholdersInString } from "../lib/placeholders.js";
 
 const router: IRouter = Router();
+
+/**
+ * Per-request server-side throttle so a single create flow can't burst past the
+ * user's SurveySparrow rate cap. The frontend sends `apiCallsPerMinute` in each
+ * request body; we build a RateLimiter, stash it in AsyncLocalStorage for the
+ * handler's async scope, and every ssGet/ssPost/ssPut awaits the store's
+ * throttle() before firing.
+ *
+ * Reservation happens SYNCHRONOUSLY before the sleep so parallel throttle()
+ * calls queue behind each other instead of stampeding the same slot.
+ */
+class RateLimiter {
+  private minSpacingMs: number;
+  private nextAvailableAt = 0;
+  constructor(callsPerMinute: number) {
+    const clamped = Math.max(1, Math.floor(callsPerMinute));
+    this.minSpacingMs = Math.ceil(60000 / clamped);
+  }
+  async throttle(): Promise<void> {
+    const now = Date.now();
+    // Reserve the next available slot BEFORE the async wait so parallel callers
+    // queue behind each other instead of stampeding the same slot.
+    const fireAt = Math.max(now, this.nextAvailableAt);
+    this.nextAvailableAt = fireAt + this.minSpacingMs;
+    const wait = fireAt - now;
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  }
+}
+
+const rateScope = new AsyncLocalStorage<RateLimiter>();
+
+function readApiCallsPerMinute(body: unknown): number {
+  const raw = (body as Record<string, unknown> | undefined)?.apiCallsPerMinute;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return 120;
+  return Math.floor(n);
+}
 
 const REGION_URLS: Record<string, string> = {
   US: "https://api.surveysparrow.com",
@@ -18,6 +56,7 @@ function getBaseUrl(region: string): string {
 }
 
 async function ssGet(baseUrl: string, apiKey: string, path: string) {
+  await rateScope.getStore()?.throttle();
   const res = await fetch(`${baseUrl}${path}`, {
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
   });
@@ -27,6 +66,7 @@ async function ssGet(baseUrl: string, apiKey: string, path: string) {
 }
 
 async function ssPost(baseUrl: string, apiKey: string, path: string, body: unknown) {
+  await rateScope.getStore()?.throttle();
   const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -38,6 +78,7 @@ async function ssPost(baseUrl: string, apiKey: string, path: string, body: unkno
 }
 
 async function ssPut(baseUrl: string, apiKey: string, path: string, body: unknown) {
+  await rateScope.getStore()?.throttle();
   const res = await fetch(`${baseUrl}${path}`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -49,6 +90,7 @@ async function ssPut(baseUrl: string, apiKey: string, path: string, body: unknow
 }
 
 router.post("/folders", async (req, res) => {
+  await rateScope.run(new RateLimiter(readApiCallsPerMinute(req.body)), async () => {
   const { region, apiKey } = req.body as { region?: string; apiKey?: string };
   if (!region || !apiKey) { res.status(400).json({ error: "region and apiKey are required" }); return; }
   const baseUrl = getBaseUrl(region);
@@ -85,9 +127,11 @@ router.post("/folders", async (req, res) => {
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+  });
 });
 
 router.post("/create-survey", async (req, res) => {
+  await rateScope.run(new RateLimiter(readApiCallsPerMinute(req.body)), async () => {
   const {
     region, apiKey, surveyFolderId, surveyType, surveyTitle, primaryLanguage,
     prompt, displayLogicEnabled, trackIp, trackLocation, partialSubmission,
@@ -556,6 +600,7 @@ router.post("/create-survey", async (req, res) => {
     details: displayLogicDetails,
   };
   res.json({ surveyId, questionsCreated, logicsApplied, displayLogic, warnings, questionResults, debugLog, baseUrl, folderMismatch, folderVerified, folderRequested: surveyFolderId ?? null, returnedFolderId, returnedFolderName, sectionsCreated, enrichedCount, compatibleCount, fallbackCount, surveyCreateResponse: surveyResult.data });
+  });
 });
 
 /**
@@ -571,6 +616,7 @@ router.post("/create-survey", async (req, res) => {
  * step into the existing debug log rendered for the create flow.
  */
 router.post("/variables-batch", async (req, res) => {
+  await rateScope.run(new RateLimiter(readApiCallsPerMinute(req.body)), async () => {
   const { region, apiKey, surveyId, variables } =
     req.body as {
       region?: string;
@@ -658,6 +704,7 @@ router.post("/variables-batch", async (req, res) => {
     });
     res.status(500).json({ error: "Failed to attach variables: " + msg, debugLog });
   }
+  });
 });
 
 /**
