@@ -540,11 +540,21 @@
     #result a:not(.btn-primary) { color: hsl(var(--primary)); }
 
     /* ─────────── Q-results table ─────────── */
-    .q-table-wrap { margin-top: 14px; overflow-x: auto; }
+    .q-table-wrap {
+      margin-top: 12px;
+      overflow: auto;
+      max-height: 420px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 10px;
+      background: hsl(var(--card));
+    }
     .q-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
     .q-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
       background: hsl(var(--muted));
-      border: 1px solid hsl(var(--border));
+      border-bottom: 1px solid hsl(var(--border));
       padding: 9px 12px;
       text-align: left;
       font-size: 12px;
@@ -554,12 +564,45 @@
       white-space: nowrap;
     }
     .q-table td {
-      border: 1px solid hsl(var(--border));
-      padding: 8px 10px;
+      border-bottom: 1px solid hsl(var(--border) / 0.55);
+      padding: 8px 12px;
       vertical-align: middle;
       color: hsl(var(--foreground));
     }
+    .q-table tbody tr:nth-child(even) td { background: hsl(var(--muted) / 0.25); }
+    .q-table tbody tr:last-child td { border-bottom: none; }
     .q-table tr:hover td { background: hsl(var(--accent) / 0.6); }
+    .q-table tr[data-q-hidden="1"] { display: none; }
+    /* Summary chips above the results table — outcome readable in seconds. */
+    .result-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .result-chip {
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid hsl(var(--border));
+      background: hsl(var(--card));
+      color: hsl(var(--foreground));
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .result-chip:hover { background: hsl(var(--accent)); }
+    .result-chip[data-active="true"] {
+      border-color: hsl(var(--primary) / 0.6);
+      background: hsl(var(--primary) / 0.08);
+    }
+    .result-chip .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .result-chip b { font-feature-settings: 'tnum'; font-weight: 600; }
     .q-text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .badge {
@@ -730,10 +773,13 @@
       padding: 10px 14px 0;
       letter-spacing: -0.005em;
     }
-    .preview-table-wrap { overflow-x: auto; padding: 8px 0 4px; }
+    .preview-table-wrap { overflow: auto; max-height: 420px; padding: 8px 0 4px; }
     .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .preview-table th {
-      background: hsl(var(--muted) / 0.5);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: hsl(var(--muted));
       color: hsl(var(--muted-foreground));
       font-weight: 500;
       font-size: 12px;
@@ -743,6 +789,7 @@
       white-space: nowrap;
       text-align: left;
     }
+    .preview-table tbody tr:nth-child(even) td { background: hsl(var(--muted) / 0.25); }
     .preview-table td {
       padding: 7px 10px;
       border-bottom: 1px solid hsl(var(--border) / 0.55);
@@ -3486,6 +3533,7 @@ Required: No"></textarea>
       if (!res.ok) {
         resultEl.className = 'error';
         resultEl.innerHTML = `<strong>Error</strong>${escHtml(data.error || 'Something went wrong.')}`;
+        resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         playErrorChime();
         return;
       }
@@ -3601,7 +3649,7 @@ Required: No"></textarea>
           ['Response survey_folder_name', escHtml(String(data.returnedFolderName ?? '—'))],
         ].map(([k, v]) => `<tr><td style="color:hsl(var(--muted-foreground));padding:2px 12px 2px 0;white-space:nowrap;font-size:12px">${k}</td><td style="font-size:12px;font-feature-settings:'tnum'">${v}</td></tr>`).join('');
         const rawCreateJson = data.surveyCreateResponse != null ? JSON.stringify(data.surveyCreateResponse, null, 2) : '(not returned)';
-        html += `<details style="margin-top:12px" open><summary style="cursor:pointer;font-size:12.5px;color:hsl(var(--primary));font-weight:600">Folder placement debug</summary>
+        html += `<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12.5px;color:hsl(var(--primary));font-weight:600">Folder placement debug</summary>
           <table style="margin-top:6px;border-collapse:collapse">${compRows}</table>
           <details style="margin-top:8px"><summary style="cursor:pointer;font-size:11px;color:hsl(var(--muted-foreground));font-weight:500">Full create survey response body</summary>
             <pre class="debug-pre" style="margin-top:4px">${escHtml(rawCreateJson)}</pre>
@@ -3641,6 +3689,7 @@ Required: No"></textarea>
 
       resultEl.innerHTML = html;
       animateAllInNode(resultEl);
+      resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
       // Attach any session-wide variables to the freshly-created survey. Runs
       // as a follow-up — failures append to the debug area, never block or
@@ -3681,6 +3730,50 @@ Required: No"></textarea>
     }
   }
 
+  const Q_STATUS_META = {
+    created:            { label: 'Created',    color: 'var(--success)' },
+    created_enriched:   { label: 'Enriched',   color: 'var(--success)' },
+    created_compatible: { label: 'Compatible', color: 'var(--primary)' },
+    created_retry:      { label: 'Retry min',  color: 'var(--warning)' },
+    created_fallback:   { label: 'Fallback',   color: 'var(--warning)' },
+    failed:             { label: 'Failed',     color: 'var(--destructive)' },
+  };
+
+  /* Click-to-filter for the post-create question table. Chips toggle; the
+     active chip hides every row whose status doesn't match. Clicking the
+     active chip again restores the full table. */
+  function filterQTable(status, chipEl) {
+    const wrap = document.querySelector('#result .q-table-wrap');
+    if (!wrap) return;
+    const chips = document.querySelectorAll('#result .result-chip');
+    const wasActive = chipEl && chipEl.getAttribute('data-active') === 'true';
+    const target = wasActive ? '' : status;
+    chips.forEach(c => {
+      const active = !wasActive && c === chipEl;
+      c.setAttribute('data-active', String(active));
+      c.setAttribute('aria-pressed', String(active));
+    });
+    wrap.querySelectorAll('tbody tr[data-q-status]').forEach(tr => {
+      const hide = target && tr.getAttribute('data-q-status') !== target;
+      tr.setAttribute('data-q-hidden', hide ? '1' : '0');
+    });
+  }
+
+  function renderQChips(qResults) {
+    const counts = {};
+    qResults.forEach(q => { counts[q.status] = (counts[q.status] || 0) + 1; });
+    const order = ['created', 'created_enriched', 'created_compatible', 'created_retry', 'created_fallback', 'failed'];
+    const chips = order
+      .filter(st => counts[st])
+      .map(st => {
+        const meta = Q_STATUS_META[st] || { label: st, color: 'var(--muted-foreground)' };
+        return `<button type="button" class="result-chip" data-active="false" onclick="filterQTable('${st}', this)" aria-pressed="false">` +
+          `<span class="chip-dot" style="background:hsl(${meta.color})"></span>${meta.label} <b>${counts[st]}</b></button>`;
+      });
+    if (chips.length <= 1) return '';
+    return `<div class="result-chips" role="group" aria-label="Filter questions by status">${chips.join('')}</div>`;
+  }
+
   function renderQTable(qResults) {
     // Drop columns that are empty across every row — keeps the post-create
     // log compact when the survey doesn't use sections or has no warnings.
@@ -3696,7 +3789,7 @@ Required: No"></textarea>
         : escHtml(q.createdType || '');
       const sectionHtml = q.section ? `<span style="font-size:11px;color:hsl(var(--muted-foreground))">${escHtml(q.section)}</span>` : '<span style="color:hsl(var(--muted-foreground) / 0.5)">—</span>';
 
-      rows += `<tr>
+      rows += `<tr data-q-status="${escHtml(q.status)}" data-q-hidden="0">
         <td style="text-align:center;color:hsl(var(--muted-foreground));font-weight:600;font-feature-settings:'tnum'">Q${escHtml(q.localId)}</td>
         <td>${badge}</td>
         ${showSection ? `<td>${sectionHtml}</td>` : ''}
@@ -3707,7 +3800,7 @@ Required: No"></textarea>
       </tr>`;
     });
 
-    return `<div class="q-table-wrap">
+    return `${renderQChips(qResults)}<div class="q-table-wrap">
       <table class="q-table">
         <thead>
           <tr>
@@ -5098,7 +5191,7 @@ Now convert the uploaded document or pasted content into this format.`;
       ? `<div class="validate-banner warning">Some questions need review before creating the survey.</div>`
       : `<div class="validate-banner success">Format looks good. You can create the survey.</div>`;
 
-    const tableHtml = `<div class="preview-table-wrap">
+    const tableHtml = `${bannerHtml}<div class="preview-table-wrap">
       <table class="preview-table">
         <thead>
           <tr>
@@ -5118,13 +5211,13 @@ Now convert the uploaded document or pasted content into this format.`;
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <div style="padding:6px 14px 10px;font-size:11.5px;color:hsl(var(--muted-foreground))">* inferred from text &nbsp; ~ mapped from synonym</div>
-    ${bannerHtml}`;
+    <div style="padding:6px 14px 10px;font-size:11.5px;color:hsl(var(--muted-foreground))">* inferred from text &nbsp; ~ mapped from synonym</div>`;
 
     previewEl.innerHTML = `<details class="parse-preview" open>
       <summary>Parsed survey preview — ${parsed.questions.length} question${parsed.questions.length !== 1 ? 's' : ''} detected</summary>
       ${lowWarningHtml}${curlyNoticeHtml}${nativeScoreNoticeHtml}${metaHtml}${tableHtml}
     </details>`;
+    previewEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     if (hasLow) playErrorChime(); else playSuccessChime();
   }
