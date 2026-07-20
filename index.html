@@ -381,6 +381,17 @@
       border-radius: 999px;
       padding: 2px 9px;
     }
+    /* Required-field marker + optional-field hint */
+    .req {
+      color: hsl(var(--destructive));
+      font-weight: 600;
+      margin-left: 1px;
+    }
+    .opt-hint {
+      font-size: 11px;
+      font-weight: 400;
+      color: hsl(var(--muted-foreground));
+    }
 
     /* ─────────── Form grid ─────────── */
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -1587,6 +1598,48 @@
       min-height: 0;
     }
 
+    /* ─────────── Advanced settings (collapsed by default) ─────────── */
+    .adv-settings {
+      margin-top: 16px;
+      border: 1px solid hsl(var(--border));
+      border-radius: 10px;
+      overflow: hidden;
+      background: hsl(var(--card));
+      grid-column: 1 / -1;
+    }
+    .adv-settings > summary {
+      cursor: pointer;
+      padding: 11px 14px;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: hsl(var(--muted) / 0.55);
+      transition: background 0.15s;
+      user-select: none;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: hsl(var(--foreground));
+    }
+    .adv-settings > summary:hover { background: hsl(var(--muted) / 0.85); }
+    .adv-settings > summary::-webkit-details-marker { display: none; }
+    .adv-settings > summary .adv-sub {
+      font-weight: 400;
+      color: hsl(var(--muted-foreground));
+      font-size: 12px;
+    }
+    .adv-settings > summary .adv-chevron {
+      margin-left: auto;
+      width: 14px;
+      height: 14px;
+      color: hsl(var(--muted-foreground));
+      flex-shrink: 0;
+      transition: transform 0.25s ease;
+    }
+    .adv-settings[open] > summary .adv-chevron { transform: rotate(90deg); }
+    .adv-settings-body { padding: 14px 16px 16px; }
+    .adv-settings-body .settings-toggles { margin-top: 0; padding-top: 0; border-top: none; }
+
     /* ─────────── Toasts (replaces blocking alert()) ─────────── */
     .toast-stack {
       position: fixed;
@@ -1760,7 +1813,7 @@
     <div class="row">
       <div class="field">
         <div class="label-row">
-          <label for="region">Region</label>
+          <label for="region">Region <span class="req" aria-hidden="true">*</span></label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
             <div class="tooltip-bubble">Choose the SurveySparrow data center where your account is hosted. The API token must belong to the same region.</div>
@@ -1778,7 +1831,7 @@
       </div>
       <div class="field">
         <div class="label-row">
-          <label for="apiKey">API Key</label>
+          <label for="apiKey">API Key <span class="req" aria-hidden="true">*</span></label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
             <div class="tooltip-bubble">Paste your SurveySparrow Private App access token. Do not use Client ID or Client Secret. The token is used only for this request and is not stored.</div>
@@ -1807,7 +1860,7 @@
       <div class="field folder-row" style="grid-column: 1/-1; grid-template-columns: 1fr auto;">
         <div class="field" style="width:100%">
           <div class="label-row">
-            <label for="folder">Survey Folder</label>
+            <label for="folder">Survey Folder <span class="opt-hint">(optional)</span></label>
             <div class="tooltip-wrap">
               <span class="tooltip-icon">?</span>
               <div class="tooltip-bubble">Choose the folder where the survey should be created. If folder placement cannot be verified, the survey may appear in the default or Personal folder. You can move it manually inside SurveySparrow.</div>
@@ -1872,7 +1925,7 @@
       </div>
       <div class="field">
         <div class="label-row">
-          <label for="surveyTitle">Survey Title</label>
+          <label for="surveyTitle">Survey Title <span class="opt-hint">(optional — prompt title used if empty)</span></label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
             <div class="tooltip-bubble">This will be used as the SurveySparrow survey name. You can also include Survey Title in the structured prompt.</div>
@@ -1882,7 +1935,7 @@
       </div>
       <div class="field" style="grid-column:1/-1">
         <div class="label-row">
-          <label for="appBaseUrl">SurveySparrow App Base URL</label>
+          <label for="appBaseUrl">SurveySparrow App Base URL <span class="opt-hint">(optional — enables the edit link)</span></label>
           <div class="tooltip-wrap">
             <span class="tooltip-icon">?</span>
             <div class="tooltip-bubble">Paste the SurveySparrow app base URL, for example https://experience.nexoraliving.cc. The app will generate the builder edit link.</div>
@@ -1890,44 +1943,49 @@
         </div>
         <input type="text" id="appBaseUrl" placeholder="https://your-surveysparrow-app-url" />
       </div>
-      <div class="settings-toggles" style="grid-column:1/-1">
-        <div class="settings-toggles-label">Survey behavior</div>
-        <div class="checkbox-row">
-          <input type="checkbox" id="trackIp" />
-          <label for="trackIp">Track IP address</label>
-          <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
-            <div class="tooltip-bubble">Records each respondent's IP address with their response. Sent as <code>settings.track_ip</code>.</div>
-          </div>
-        </div>
-        <div class="checkbox-row" style="margin-top:8px">
-          <input type="checkbox" id="trackLocation" />
-          <label for="trackLocation">Track location</label>
-          <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
-            <div class="tooltip-bubble">Records each respondent's geographic location with their response. Sent as <code>settings.track_location</code>.</div>
-          </div>
-        </div>
-        <div class="checkbox-row" style="margin-top:8px">
-          <input type="checkbox" id="partialSubmission" />
-          <label for="partialSubmission">Allow partial submission</label>
-          <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
-            <div class="tooltip-bubble">Saves the respondent's progress even if they don't finish the survey. Sent as <code>settings.partial_submission</code>.</div>
-          </div>
-        </div>
-        <div class="field" style="margin-top:16px;max-width:220px">
-          <div class="label-row">
-            <label for="apiCallsPerMinute">API calls per minute</label>
-            <div class="tooltip-wrap">
-              <span class="tooltip-icon">?</span>
-              <div class="tooltip-bubble">SurveySparrow defaults to 120 API calls per minute per account. If your account has a confirmed higher limit, raise this value. Requests within a single create are throttled server-side to stay under the cap.</div>
+      <details class="adv-settings">
+        <summary>
+          Advanced settings
+          <span class="adv-sub">Tracking, partial submission, API rate limit</span>
+          <svg class="adv-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+        </summary>
+        <div class="adv-settings-body">
+          <div class="settings-toggles" style="grid-column:1/-1">
+            <div class="settings-toggles-label">Survey behavior</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="trackIp" />
+              <label for="trackIp">Track IP address</label>
+              <div class="tooltip-wrap">
+                <span class="tooltip-icon">?</span>
+                <div class="tooltip-bubble">Records each respondent's IP address with their response. Sent as <code>settings.track_ip</code>.</div>
+              </div>
+            </div>
+            <div class="checkbox-row" style="margin-top:8px">
+              <input type="checkbox" id="trackLocation" />
+              <label for="trackLocation">Track location</label>
+              <div class="tooltip-wrap">
+                <span class="tooltip-icon">?</span>
+                <div class="tooltip-bubble">Records each respondent's geographic location with their response. Sent as <code>settings.track_location</code>.</div>
+              </div>
+            </div>
+            <div class="checkbox-row" style="margin-top:8px">
+              <input type="checkbox" id="partialSubmission" />
+              <label for="partialSubmission">Allow partial submission</label>
+              <div class="tooltip-wrap">
+                <span class="tooltip-icon">?</span>
+                <div class="tooltip-bubble">Saves the respondent's progress even if they don't finish the survey. Sent as <code>settings.partial_submission</code>.</div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px;max-width:220px">
+              <div class="label-row">
+                <label for="apiCallsPerMinute">API calls per minute</label>
+              </div>
+              <input type="number" id="apiCallsPerMinute" min="1" step="1" value="120" />
+              <p style="font-size:12px;color:hsl(var(--muted-foreground));margin:0;line-height:1.5">SurveySparrow defaults to 120 API calls per minute. Change this only if your account has a confirmed higher limit.</p>
             </div>
           </div>
-          <input type="number" id="apiCallsPerMinute" min="1" step="1" value="120" />
-          <p style="font-size:12px;color:hsl(var(--muted-foreground));margin:0;line-height:1.5">SurveySparrow defaults to 120 API calls per minute. Change this only if your account has a confirmed higher limit.</p>
         </div>
-      </div>
+      </details>
     </div>
   </div>
 
@@ -2063,7 +2121,7 @@ $account_name"></textarea>
 
     <div class="field" style="margin-top:14px">
       <div class="label-row">
-        <label for="prompt">Structured Prompt</label>
+        <label for="prompt">Structured Prompt <span class="req" aria-hidden="true">*</span></label>
         <div class="tooltip-wrap">
           <span class="tooltip-icon">?</span>
           <div class="tooltip-bubble">Paste structured survey text here. Use Validate Format before creating the survey.</div>
