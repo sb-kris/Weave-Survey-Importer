@@ -168,9 +168,11 @@
       margin-top: 3px;
     }
     .app-header-actions { display: flex; align-items: center; gap: 8px; }
-    /* Header connection pill — hidden on very narrow screens to save room. */
-    .header-conn { display: none; }
-    @media (min-width: 480px) { .header-conn { display: inline-flex; } }
+    /* Header connection pill — hidden on very narrow screens to save room.
+       Uses .pill.header-conn so it wins over the .pill display rule that is
+       defined later in the stylesheet, regardless of source order. */
+    .pill.header-conn { display: none; }
+    @media (min-width: 480px) { .pill.header-conn { display: inline-flex; } }
 
     /* ─────────── Theme menu ─────────── */
     .theme-trigger {
@@ -269,13 +271,13 @@
 
     /* ─────────── Container & hero ─────────── */
     .container {
-      max-width: 820px;
+      max-width: 860px;
       margin: 0 auto;
-      padding: 36px 24px 64px;
+      padding: 28px 24px 64px;
     }
-    .hero { margin-bottom: 40px; }
+    .hero { margin-bottom: 28px; }
     .hero h1 {
-      font-size: clamp(36px, 5.2vw, 52px);
+      font-size: clamp(30px, 4.4vw, 42px);
       font-weight: 600;
       letter-spacing: -0.04em;
       line-height: 1.02;
@@ -292,14 +294,14 @@
       letter-spacing: -0.015em;
     }
     .hero .lede {
-      margin-top: 18px;
-      font-size: 16px;
+      margin-top: 12px;
+      font-size: 14.5px;
       line-height: 1.5;
       color: hsl(var(--muted-foreground));
       max-width: 640px;
       letter-spacing: -0.005em;
     }
-    .hero .meta { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .hero .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
     /* ─────────── Pills ─────────── */
     .pill {
@@ -342,8 +344,8 @@
       background: hsl(var(--card));
       border: 1px solid hsl(var(--border));
       border-radius: 14px;
-      padding: 26px 28px;
-      margin-bottom: 20px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
       transition: background 0.25s, border-color 0.25s;
     }
     .card-organic { border-radius: 24px 18px 28px 16px; }
@@ -353,7 +355,7 @@
       font-weight: 600;
       letter-spacing: -0.015em;
       color: hsl(var(--foreground));
-      margin-bottom: 22px;
+      margin-bottom: 18px;
       display: flex;
       align-items: center;
       gap: 9px;
@@ -451,6 +453,11 @@
     }
     button:active:not(:disabled) { transform: translateY(1px); }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button:focus-visible, a:focus-visible, summary:focus-visible,
+    [role="button"]:focus-visible, .theme-row:focus-visible {
+      outline: 2px solid hsl(var(--ring));
+      outline-offset: 2px;
+    }
 
     .btn-primary {
       background: linear-gradient(135deg, hsl(var(--primary)), color-mix(in oklab, hsl(var(--primary)) 65%, #5b21b6));
@@ -922,24 +929,29 @@
       line-height: 1;
       user-select: none;
     }
+    .tooltip-icon:focus-visible {
+      outline: 2px solid hsl(var(--ring));
+      outline-offset: 1px;
+    }
     .tooltip-bubble {
       display: none;
       position: absolute;
-      left: 22px;
-      top: 50%;
-      transform: translateY(-50%);
+      left: 0;
+      top: calc(100% + 6px);
       background: hsl(var(--foreground));
       color: hsl(var(--background));
       font-size: 11.5px;
       line-height: 1.55;
       padding: 9px 12px;
       border-radius: 7px;
-      width: 270px;
+      width: max-content;
+      max-width: min(270px, calc(100vw - 48px));
       z-index: 100;
       pointer-events: none;
       box-shadow: 0 6px 22px hsl(var(--foreground) / 0.2);
     }
-    .tooltip-wrap:hover .tooltip-bubble { display: block; }
+    .tooltip-wrap:hover .tooltip-bubble,
+    .tooltip-wrap:focus-within .tooltip-bubble { display: block; }
 
     /* ─────────── Modal ─────────── */
     .modal-backdrop {
@@ -1364,6 +1376,9 @@
       transition: opacity 0.45s ease, transform 0.45s ease;
     }
     [data-reveal].in-view { opacity: 1; transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) {
+      [data-reveal] { opacity: 1; transform: none; transition: none; }
+    }
 
     /* tabular numbers for animated counts */
     [data-animated-number] {
@@ -1598,6 +1613,21 @@
       min-height: 0;
     }
 
+    /* ─────────── Rate banner progress bar ─────────── */
+    .rate-progress-track {
+      margin-top: 8px;
+      height: 5px;
+      border-radius: 999px;
+      background: hsl(var(--muted));
+      overflow: hidden;
+    }
+    .rate-progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.7));
+      transition: width 0.9s linear;
+    }
+
     /* ─────────── Advanced settings (collapsed by default) ─────────── */
     .adv-settings {
       margin-top: 16px;
@@ -1815,7 +1845,7 @@
         <div class="label-row">
           <label for="region">Region <span class="req" aria-hidden="true">*</span></label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">Choose the SurveySparrow data center where your account is hosted. The API token must belong to the same region.</div>
           </div>
         </div>
@@ -1833,7 +1863,7 @@
         <div class="label-row">
           <label for="apiKey">API Key <span class="req" aria-hidden="true">*</span></label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">Paste your SurveySparrow Private App access token. Do not use Client ID or Client Secret. The token is used only for this request and is not stored.</div>
           </div>
         </div>
@@ -1862,7 +1892,7 @@
           <div class="label-row">
             <label for="folder">Survey Folder <span class="opt-hint">(optional)</span></label>
             <div class="tooltip-wrap">
-              <span class="tooltip-icon">?</span>
+              <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
               <div class="tooltip-bubble">Choose the folder where the survey should be created. If folder placement cannot be verified, the survey may appear in the default or Personal folder. You can move it manually inside SurveySparrow.</div>
             </div>
           </div>
@@ -1888,7 +1918,7 @@
         <div class="label-row">
           <label for="surveyType">Survey Type</label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">Create ClassicForm, NPS, CES, or CSAT surveys.</div>
           </div>
         </div>
@@ -1903,7 +1933,7 @@
         <div class="label-row">
           <label for="primaryLanguage">Primary Language</label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">Primary language for the survey. The full name is shown here; the ISO code is sent to SurveySparrow.</div>
           </div>
         </div>
@@ -1927,7 +1957,7 @@
         <div class="label-row">
           <label for="surveyTitle">Survey Title <span class="opt-hint">(optional — prompt title used if empty)</span></label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">This will be used as the SurveySparrow survey name. You can also include Survey Title in the structured prompt.</div>
           </div>
         </div>
@@ -1937,7 +1967,7 @@
         <div class="label-row">
           <label for="appBaseUrl">SurveySparrow App Base URL <span class="opt-hint">(optional — enables the edit link)</span></label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">Paste the SurveySparrow app base URL, for example https://experience.nexoraliving.cc. The app will generate the builder edit link.</div>
           </div>
         </div>
@@ -1956,7 +1986,7 @@
               <input type="checkbox" id="trackIp" />
               <label for="trackIp">Track IP address</label>
               <div class="tooltip-wrap">
-                <span class="tooltip-icon">?</span>
+                <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
                 <div class="tooltip-bubble">Records each respondent's IP address with their response. Sent as <code>settings.track_ip</code>.</div>
               </div>
             </div>
@@ -1964,7 +1994,7 @@
               <input type="checkbox" id="trackLocation" />
               <label for="trackLocation">Track location</label>
               <div class="tooltip-wrap">
-                <span class="tooltip-icon">?</span>
+                <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
                 <div class="tooltip-bubble">Records each respondent's geographic location with their response. Sent as <code>settings.track_location</code>.</div>
               </div>
             </div>
@@ -1972,7 +2002,7 @@
               <input type="checkbox" id="partialSubmission" />
               <label for="partialSubmission">Allow partial submission</label>
               <div class="tooltip-wrap">
-                <span class="tooltip-icon">?</span>
+                <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
                 <div class="tooltip-bubble">Saves the respondent's progress even if they don't finish the survey. Sent as <code>settings.partial_submission</code>.</div>
               </div>
             </div>
@@ -2000,7 +2030,7 @@
         <div class="label-row">
           <label for="variableName">Name</label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">Machine identifier for the variable (e.g. customer_email, lifecycle_stage). Saved as the bare key; SurveySparrow references it as <code>$customer_email</code> inside survey text. Must be unique. Up to 500 characters.</div>
           </div>
         </div>
@@ -2010,7 +2040,7 @@
         <div class="label-row">
           <label for="variableType">Type</label>
           <div class="tooltip-wrap">
-            <span class="tooltip-icon">?</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
             <div class="tooltip-bubble">SurveySparrow stores variables as one of three types: String, Number, or Date. Pick the one that matches the value you'll pass in.</div>
           </div>
         </div>
@@ -2055,7 +2085,7 @@ $account_name"></textarea>
     <div class="label-row" style="margin-bottom:22px">
       <h2 style="margin:0"><span class="step-chip" aria-hidden="true">4</span>Survey Prompt</h2>
       <div class="tooltip-wrap">
-        <span class="tooltip-icon">?</span>
+        <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
         <div class="tooltip-bubble">Important step — don't skip this. Formatting the prompt correctly is required for surveys to be created properly.</div>
       </div>
     </div>
@@ -2123,7 +2153,7 @@ $account_name"></textarea>
       <div class="label-row">
         <label for="prompt">Structured Prompt <span class="req" aria-hidden="true">*</span></label>
         <div class="tooltip-wrap">
-          <span class="tooltip-icon">?</span>
+          <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
           <div class="tooltip-bubble">Paste structured survey text here. Use Validate Format before creating the survey.</div>
         </div>
       </div>
@@ -2172,6 +2202,7 @@ Required: No"></textarea>
       <button class="btn-validate" id="validateBtn" onclick="validateFormat()" type="button">Validate format</button>
       <button class="btn-primary" id="createBtn" onclick="createSurvey()" type="button">Create Survey</button>
       <span class="status-msg" id="statusMsg"></span>
+      <span class="status-msg" style="margin-left:auto;opacity:0.75">Ctrl/⌘ + Enter in the prompt validates</span>
     </div>
     <div style="margin-top:10px;font-size:12px;color:hsl(var(--muted-foreground))">Validate the format first. This app creates a SurveySparrow draft. Review the final survey inside SurveySparrow before sending it to respondents.</div>
     <div id="preflightNote"></div>
@@ -3508,11 +3539,14 @@ Required: No"></textarea>
     el.className = 'validate-banner';
     el.style.display = 'block';
     const render = () => {
-      const elapsedS = Math.floor((Date.now() - _rateBannerStart) / 1000);
-      const remainingS = Math.max(0, Math.ceil((totalMs - (Date.now() - _rateBannerStart)) / 1000));
+      const elapsed = Date.now() - _rateBannerStart;
+      const elapsedS = Math.floor(elapsed / 1000);
+      const remainingS = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+      const pct = Math.min(97, Math.round((elapsed / totalMs) * 100));
       el.innerHTML =
         `<div><b>Processing requests within your API limit of ${rate} calls per minute.</b></div>` +
-        `<div style="margin-top:4px;font-size:12.5px;color:hsl(var(--muted-foreground));font-feature-settings:'tnum'">About ${elapsedS}s elapsed, ~${remainingS}s remaining.</div>`;
+        `<div style="margin-top:4px;font-size:12.5px;color:hsl(var(--muted-foreground));font-feature-settings:'tnum'">About ${elapsedS}s elapsed, ~${remainingS}s remaining.</div>` +
+        `<div class="rate-progress-track" aria-hidden="true"><div class="rate-progress-fill" style="width:${pct}%"></div></div>`;
     };
     render();
     _rateBannerTimer = setInterval(render, 1000);
@@ -5376,8 +5410,31 @@ Now convert the uploaded document or pasted content into this format.`;
     } else {
       init();
     }
+    function initKeyboardShortcuts() {
+      // Escape closes whichever modal is open (the theme menu handles its own).
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const openModal = document.querySelector('.modal-backdrop.open');
+        if (!openModal) return;
+        if (openModal.id === 'formattingModal') closeFormattingHelper();
+        else if (openModal.id === 'clearVariablesModal') closeClearVariablesModal();
+        else if (openModal.id === 'llmFormatModal') closeLlmFormatter();
+      });
+      // Cmd/Ctrl+Enter inside the prompt = Validate format (the core loop).
+      const promptEl = document.getElementById('prompt');
+      if (promptEl) {
+        promptEl.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            validateFormat();
+          }
+        });
+      }
+    }
+
     function init() {
       initThemeMenu();
+      initKeyboardShortcuts();
       initReveal();
       initGlobalClickSound();
       loadSavedCredentials();
