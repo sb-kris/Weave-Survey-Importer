@@ -1511,6 +1511,56 @@
       min-height: 0;
     }
 
+    /* ─────────── Toasts (replaces blocking alert()) ─────────── */
+    .toast-stack {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 300;
+      width: min(440px, calc(100vw - 32px));
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: hsl(var(--popover));
+      color: hsl(var(--foreground));
+      border: 1px solid hsl(var(--border));
+      border-left: 3px solid hsl(var(--primary));
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 13px;
+      line-height: 1.5;
+      box-shadow: 0 10px 30px hsl(var(--foreground) / 0.16);
+      animation: toast-in 0.22s ease;
+    }
+    .toast.error   { border-left-color: hsl(var(--destructive)); }
+    .toast.success { border-left-color: hsl(var(--success)); }
+    .toast.warning { border-left-color: hsl(var(--warning)); }
+    .toast-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: hsl(var(--muted-foreground));
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      padding: 1px 4px;
+      flex-shrink: 0;
+    }
+    .toast-close:hover { color: hsl(var(--foreground)); }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
     /* footer note */
     .page-footer {
       max-width: 820px;
@@ -2004,6 +2054,8 @@ Required: No"></textarea>
   <div id="debug"></div>
 </main>
 
+<div class="toast-stack" id="toastStack" role="status" aria-live="polite"></div>
+
 <footer class="page-footer">
   <span class="ss-mark" aria-hidden="true"><img src="/surveysparrow-symbol.svg" alt="" onerror="this.style.display='none'" /></span>
   Powered by the SurveySparrow API · Always review your draft before sharing.
@@ -2143,6 +2195,31 @@ Required: No"></textarea>
 
 <script>
   const BASE = '/api';
+
+  /* ─────────────────────── Toasts ───────────────────────
+     Non-blocking replacement for alert(). Kind: 'info' | 'success' |
+     'warning' | 'error'. Auto-dismisses; errors stay a little longer.
+     Built with createElement/textContent so message content is never
+     interpreted as HTML. Falls back to alert() if the stack is missing. */
+  function showToast(msg, kind = 'info', timeoutMs) {
+    const stack = document.getElementById('toastStack');
+    if (!stack) { alert(msg); return; }
+    const el = document.createElement('div');
+    el.className = 'toast' + (kind !== 'info' ? ' ' + kind : '');
+    const text = document.createElement('span');
+    text.textContent = msg;
+    const close = document.createElement('button');
+    close.className = 'toast-close';
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.textContent = '×';
+    close.onclick = () => el.remove();
+    el.appendChild(text);
+    el.appendChild(close);
+    stack.appendChild(el);
+    const ms = timeoutMs ?? (kind === 'error' ? 7000 : 4500);
+    setTimeout(() => el.remove(), ms);
+  }
 
   /* ─────────────────────── Sound system ───────────────────────
      File-first with synth fallback. Reads prefs from localStorage
@@ -3101,7 +3178,11 @@ Required: No"></textarea>
 
   async function loadFolders() {
     const apiKey = getApiKey();
-    if (!apiKey) { alert('Please enter your API key first.'); playErrorChime(); return; }
+    if (!apiKey) {
+      showToast('Enter your SurveySparrow API key first.', 'error');
+      document.getElementById('apiKey')?.focus();
+      playErrorChime(); return;
+    }
 
     const btn = document.getElementById('loadFolders');
     btn.disabled = true;
@@ -3124,7 +3205,7 @@ Required: No"></textarea>
 
       if (!res.ok) {
         const detail = data.error || res.statusText || 'no error message returned';
-        alert(`Error loading folders (HTTP ${res.status}): ${detail}`);
+        showToast(`Couldn't load folders (HTTP ${res.status}): ${detail}`, 'error');
         playErrorChime();
         setConnected('error');
         return;
@@ -3245,7 +3326,7 @@ Required: No"></textarea>
         playSuccessChime();
       }
     } catch (err) {
-      alert('Network error: ' + err.message);
+      showToast('Network error: ' + err.message, 'error');
       playErrorChime();
       setConnected('error');
     } finally {
@@ -3310,11 +3391,19 @@ Required: No"></textarea>
 
   async function createSurvey() {
     const apiKey = getApiKey();
-    if (!apiKey) { alert('Please enter your API key.'); playErrorChime(); return; }
+    if (!apiKey) {
+      showToast('Enter your SurveySparrow API key before creating a survey.', 'error');
+      document.getElementById('apiKey')?.focus();
+      playErrorChime(); return;
+    }
 
     const surveyTitle = document.getElementById('surveyTitle').value.trim();
     const prompt = document.getElementById('prompt').value.trim();
-    if (!prompt) { alert('Please enter a survey prompt.'); playErrorChime(); return; }
+    if (!prompt) {
+      showToast('Paste a structured prompt before creating a survey.', 'error');
+      document.getElementById('prompt')?.focus();
+      playErrorChime(); return;
+    }
 
     const displayLogicEnabled = document.getElementById('displayLogic').checked;
 
@@ -3723,7 +3812,7 @@ Required: No"></textarea>
         btn.classList.remove('copied');
       }, 2000);
     }).catch(() => {
-      alert('Could not copy to clipboard. Please copy manually:\n\n' + curlCmd);
+      showToast('Could not copy to clipboard — check browser permissions.', 'error');
     });
   }
 
@@ -4602,7 +4691,7 @@ Now convert the uploaded document or pasted content into this format.`;
         // manually with Cmd/Ctrl+C, and tell them where it is.
         const ta = document.getElementById('gptPromptPreview');
         if (ta) { ta.focus(); ta.select(); }
-        alert('Could not copy automatically. The prompt is selected in the box above — press Cmd/Ctrl + C to copy it.');
+        showToast('Could not copy automatically. The prompt is selected in the box — press Cmd/Ctrl + C.', 'warning');
       }
     });
   }
@@ -4880,7 +4969,11 @@ Now convert the uploaded document or pasted content into this format.`;
 
   function validateFormat() {
     const raw = document.getElementById('prompt').value;
-    if (!raw.trim()) { alert('Please enter a survey prompt first.'); playErrorChime(); return; }
+    if (!raw.trim()) {
+      showToast('Paste a structured prompt first, then validate.', 'error');
+      document.getElementById('prompt')?.focus();
+      playErrorChime(); return;
+    }
 
     const parsed = parsePromptJS(raw);
     const previewEl = document.getElementById('parsePreview');
