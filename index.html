@@ -168,6 +168,9 @@
       margin-top: 3px;
     }
     .app-header-actions { display: flex; align-items: center; gap: 8px; }
+    /* Header connection pill — hidden on very narrow screens to save room. */
+    .header-conn { display: none; }
+    @media (min-width: 480px) { .header-conn { display: inline-flex; } }
 
     /* ─────────── Theme menu ─────────── */
     .theme-trigger {
@@ -351,6 +354,32 @@
       letter-spacing: -0.015em;
       color: hsl(var(--foreground));
       margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    /* Numbered workflow steps — cards are a sequence, make it visible. */
+    .step-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: hsl(var(--primary) / 0.1);
+      color: hsl(var(--primary));
+      font-size: 11.5px;
+      font-weight: 600;
+      font-feature-settings: 'tnum';
+      flex-shrink: 0;
+    }
+    .step-optional {
+      font-size: 11px;
+      font-weight: 500;
+      color: hsl(var(--muted-foreground));
+      background: hsl(var(--muted) / 0.6);
+      border-radius: 999px;
+      padding: 2px 9px;
     }
 
     /* ─────────── Form grid ─────────── */
@@ -1653,6 +1682,7 @@
       </div>
     </div>
     <div class="app-header-actions">
+      <span class="pill pill-disconnected header-conn" id="headerConnPill"><span class="pill-dot"></span><span class="pill-label">Disconnected</span></span>
       <button class="theme-trigger" id="themeTrigger" aria-haspopup="menu" aria-expanded="false" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         Theme
@@ -1726,7 +1756,7 @@
   </section>
 
   <div class="card" data-reveal>
-    <h2>Connection</h2>
+    <h2><span class="step-chip" aria-hidden="true">1</span>Connection</h2>
     <div class="row">
       <div class="field">
         <div class="label-row">
@@ -1772,7 +1802,7 @@
   </div>
 
   <div class="card" data-reveal>
-    <h2>Survey Settings</h2>
+    <h2><span class="step-chip" aria-hidden="true">2</span>Survey Settings</h2>
     <div class="row">
       <div class="field folder-row" style="grid-column: 1/-1; grid-template-columns: 1fr auto;">
         <div class="field" style="width:100%">
@@ -1797,7 +1827,7 @@
           <div id="folderSearchEmpty" style="display:none;margin-top:6px;font-size:12px;color:hsl(var(--muted-foreground))">No matching folders found.</div>
         </div>
         <div style="padding-bottom:1px">
-          <button class="btn-secondary" id="loadFolders" onclick="loadFolders()" type="button">Load Folders</button>
+          <button class="btn-secondary" id="loadFolders" onclick="loadFolders()" type="button">Reload folders</button>
         </div>
       </div>
       <div id="folderDebug" style="grid-column:1/-1;display:none"></div>
@@ -1903,7 +1933,7 @@
 
   <div class="card" data-reveal>
     <div class="variables-header">
-      <h2>Variables</h2>
+      <h2><span class="step-chip" aria-hidden="true">3</span>Variables <span class="step-optional">Optional</span></h2>
       <button type="button" id="variablesClearBtn" class="variables-clear" disabled>Clear all</button>
     </div>
     <p class="variables-hint">SurveySparrow context fields applied automatically to every survey you create in this session. Define once — they ship with every Create.</p>
@@ -1965,7 +1995,7 @@ $account_name"></textarea>
 
   <div class="card card-organic" data-reveal>
     <div class="label-row" style="margin-bottom:22px">
-      <h2 style="margin:0">Survey Prompt</h2>
+      <h2 style="margin:0"><span class="step-chip" aria-hidden="true">4</span>Survey Prompt</h2>
       <div class="tooltip-wrap">
         <span class="tooltip-icon">?</span>
         <div class="tooltip-bubble">Important step — don't skip this. Formatting the prompt correctly is required for surveys to be created properly.</div>
@@ -3183,14 +3213,18 @@ Required: No"></textarea>
      also clears + disables the folder selector so a stale folder list can't be
      used against a dropped/failed connection. */
   function setConnected(state) {
-    const pill = document.getElementById('heroConnectionPill');
+    const pills = [
+      document.getElementById('heroConnectionPill'),
+      document.getElementById('headerConnPill'),
+    ];
     const status = document.getElementById('connectStatus');
-    if (pill) {
+    pills.forEach(pill => {
+      if (!pill) return;
       pill.classList.remove('pill-success', 'pill-disconnected', 'pill-error');
       const label = pill.querySelector('.pill-label');
       if (state === 'connected') {
         pill.classList.add('pill-success');
-        if (label) label.textContent = 'Connected to API';
+        if (label) label.textContent = 'Connected';
       } else if (state === 'error') {
         pill.classList.add('pill-error');
         if (label) label.textContent = 'Connection failed';
@@ -3198,7 +3232,7 @@ Required: No"></textarea>
         pill.classList.add('pill-disconnected');
         if (label) label.textContent = 'Disconnected';
       }
-    }
+    });
     if (status) {
       if (state === 'connected') { status.textContent = 'Connected'; status.style.color = 'hsl(var(--success))'; }
       else if (state === 'error') { status.textContent = 'Connection failed'; status.style.color = 'hsl(var(--destructive))'; }
@@ -3295,12 +3329,8 @@ Required: No"></textarea>
         normalized.forEach(nf => {
           const opt = document.createElement('option');
           opt.value = nf.dropdownValue;
-          let label = nf.label;
-          label += ` — survey folder ID: ${nf.dropdownValue}`;
-          if (nf.legacy_folder_id && nf.legacy_folder_id !== nf.dropdownValue) {
-            label += ` — legacy folder ID: ${nf.legacy_folder_id}`;
-          }
-          if (nf.usedLegacyFolderId) label += ' ⚠ legacy folder ID used';
+          let label = `${nf.label} (ID ${nf.dropdownValue})`;
+          if (nf.usedLegacyFolderId) label += ' ⚠ legacy ID';
           opt.textContent = label;
           sel.appendChild(opt);
           window._loadedFolders[nf.dropdownValue] = nf;
@@ -3378,7 +3408,7 @@ Required: No"></textarea>
       setConnected('error');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Load Folders';
+      btn.textContent = 'Reload folders';
       if (_connectBtn) {
         _connectBtn.disabled = false;
         _connectBtn.innerHTML = _connectBtnOrig;
