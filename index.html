@@ -360,6 +360,54 @@
       align-items: center;
       gap: 9px;
     }
+
+    /* ─────────── Collapsible cards ─────────── */
+    /* A completed step collapses to its header + a one-line summary, so the
+       page becomes a compact checklist rather than a wall of open forms. */
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      user-select: none;
+      margin: -4px -4px 0;
+      padding: 4px;
+      border-radius: 8px;
+    }
+    .card-head:hover { background: hsl(var(--muted) / 0.35); }
+    .card-head h2 { margin-bottom: 0; }
+    .card-head .step-chip { margin: 0; }
+    .collapsible > .card-head { margin-bottom: 18px; }
+    .collapsible.is-collapsed > .card-head { margin-bottom: 0; }
+    .card-summary {
+      margin-left: 4px;
+      font-size: 12.5px;
+      font-weight: 400;
+      color: hsl(var(--muted-foreground));
+      font-feature-settings: 'tnum';
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: none;
+    }
+    .collapsible.is-collapsed > .card-head .card-summary { display: block; }
+    .card-chevron {
+      margin-left: auto;
+      flex-shrink: 0;
+      width: 26px; height: 26px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: none;
+      border: none;
+      color: hsl(var(--muted-foreground));
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .card-chevron svg { width: 15px; height: 15px; transition: transform 0.25s ease; }
+    .collapsible.is-collapsed > .card-head .card-chevron svg { transform: rotate(-90deg); }
+    .collapsible.is-collapsed > :not(.card-head) { display: none !important; }
+    /* Tighter padding + subtle tint once collapsed, so completed steps read as
+       compact checklist rows rather than empty cards. */
+    .collapsible.is-collapsed { padding-top: 15px; padding-bottom: 15px; background: hsl(var(--muted) / 0.18); }
     /* Numbered workflow steps — cards are a sequence, make it visible. */
     .step-chip {
       display: inline-flex;
@@ -1906,8 +1954,12 @@
     <p class="lede">Paste structured text — the importer builds a SurveySparrow draft with sections, every question type, welcome &amp; thank-you screens, and optional display logic.</p>
   </section>
 
-  <div class="card" data-reveal>
-    <h2><span class="step-chip" aria-hidden="true">1</span>Connection</h2>
+  <div class="card collapsible" data-reveal id="connectionCard">
+    <div class="card-head" onclick="if(!event.target.closest('button,a,input,select,label'))toggleCard(this)">
+      <h2><span class="step-chip" aria-hidden="true">1</span>Connection</h2>
+      <span class="card-summary" id="connectionSummary"></span>
+      <button class="card-chevron" type="button" aria-label="Toggle section" tabindex="-1" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
     <div class="row">
       <div class="field">
         <div class="label-row">
@@ -1952,8 +2004,12 @@
     </div>
   </div>
 
-  <div class="card" data-reveal>
-    <h2><span class="step-chip" aria-hidden="true">2</span>Survey Settings</h2>
+  <div class="card collapsible" data-reveal id="settingsCard">
+    <div class="card-head" onclick="if(!event.target.closest('button,a,input,select,label'))toggleCard(this)">
+      <h2><span class="step-chip" aria-hidden="true">2</span>Survey Settings</h2>
+      <span class="card-summary" id="settingsSummary"></span>
+      <button class="card-chevron" type="button" aria-label="Toggle section" tabindex="-1" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
     <div class="row">
       <div class="field folder-row" style="grid-column: 1/-1; grid-template-columns: 1fr auto;">
         <div class="field" style="width:100%">
@@ -2087,10 +2143,12 @@
     </div>
   </div>
 
-  <div class="card" data-reveal>
-    <div class="variables-header">
+  <div class="card collapsible" data-reveal id="variablesCard">
+    <div class="card-head" onclick="if(!event.target.closest('button,a,input,select,label'))toggleCard(this)">
       <h2><span class="step-chip" aria-hidden="true">3</span>Variables <span class="step-optional">Optional</span></h2>
-      <button type="button" id="variablesClearBtn" class="variables-clear" disabled>Clear all</button>
+      <span class="card-summary" id="variablesSummary"></span>
+      <button type="button" id="variablesClearBtn" class="variables-clear" style="margin-left:auto" disabled>Clear all</button>
+      <button class="card-chevron" type="button" aria-label="Toggle section" tabindex="-1" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <p class="variables-hint">SurveySparrow context fields applied automatically to every survey you create in this session. Define once — they ship with every Create.</p>
     <div class="variables-form">
@@ -3326,6 +3384,67 @@ Required: No"></textarea>
   function getRegion() { return document.getElementById('region').value; }
   function getApiKey() { return document.getElementById('apiKey').value.trim(); }
 
+  /* ─────────────────────── Collapsible cards ───────────────────────
+     A completed step collapses to a one-line summary so the page reads
+     like a checklist. Header click / Enter / Space toggles; the chevron
+     is a redundant affordance. Connection auto-collapses on connect. */
+  function toggleCard(headEl, forceCollapse) {
+    const card = headEl.closest('.card');
+    if (!card) return;
+    const collapse = typeof forceCollapse === 'boolean' ? forceCollapse : !card.classList.contains('is-collapsed');
+    if (collapse) refreshCardSummary(card);
+    card.classList.toggle('is-collapsed', collapse);
+    headEl.setAttribute('aria-expanded', String(!collapse));
+  }
+  /* Build the one-line summary shown when a card is collapsed. */
+  function refreshCardSummary(card) {
+    if (!card) return;
+    if (card.id === 'settingsCard') {
+      const typeEl = document.getElementById('surveyType');
+      const langEl = document.getElementById('primaryLanguage');
+      const folderEl = document.getElementById('folder');
+      const parts = [];
+      if (folderEl && folderEl.value) parts.push((folderEl.options[folderEl.selectedIndex]?.text || '').replace(/\s*\(ID.*$/, '').trim());
+      if (typeEl) parts.push(typeEl.value);
+      if (langEl) parts.push(langEl.options[langEl.selectedIndex]?.text || '');
+      const el = document.getElementById('settingsSummary');
+      if (el) el.textContent = parts.filter(Boolean).join('  ·  ');
+    } else if (card.id === 'variablesCard') {
+      const n = (loadVariables() || []).length;
+      const el = document.getElementById('variablesSummary');
+      if (el) el.textContent = n ? `${n} variable${n !== 1 ? 's' : ''}` : 'None added';
+    } else if (card.id === 'connectionCard') {
+      const el = document.getElementById('connectionSummary');
+      if (el && !el.textContent.trim()) el.textContent = 'Not connected';
+    }
+  }
+  function initCollapsibleCards() {
+    document.querySelectorAll('.collapsible > .card-head').forEach(head => {
+      head.setAttribute('role', 'button');
+      head.setAttribute('tabindex', '0');
+      head.setAttribute('aria-expanded', 'true');
+      head.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCard(head); }
+      });
+    });
+  }
+  /* Fill the Connection card's collapsed summary: "US · ••••1a2b · Connected". */
+  function updateConnectionSummary(state) {
+    const summary = document.getElementById('connectionSummary');
+    const card = document.getElementById('connectionCard');
+    if (!summary || !card) return;
+    const head = card.querySelector('.card-head');
+    if (state === 'connected') {
+      const region = document.getElementById('region')?.value || '';
+      const key = getApiKey();
+      const masked = key ? '••••' + key.slice(-4) : '';
+      summary.textContent = [region, masked, 'Connected'].filter(Boolean).join('  ·  ');
+      if (head) toggleCard(head, true);
+    } else if (head) {
+      toggleCard(head, false);
+    }
+  }
+
   /* SurveySparrow account-wide API rate cap. Persisted so the value survives
      page reloads. Blank/NaN/<1 falls back to SurveySparrow's default of 120.
      Consumed by the three fetch calls that hit the SurveySparrow API and by
@@ -3417,6 +3536,9 @@ Required: No"></textarea>
       window._loadedFolders = {};
       window._allFolderOptions = [];
     }
+    // Collapse the Connection card into a summary once connected; re-open it
+    // whenever the connection drops or errors so the fields are reachable.
+    updateConnectionSummary(state);
   }
 
   window._loadedFolders = {};
@@ -5518,6 +5640,7 @@ Now convert the uploaded document or pasted content into this format.`;
     function init() {
       initThemeMenu();
       initKeyboardShortcuts();
+      initCollapsibleCards();
       initReveal();
       initGlobalClickSound();
       loadSavedCredentials();
