@@ -2689,15 +2689,17 @@ Required: No"></textarea>
 
   function getStoredTheme() {
     const v = localStorage.getItem(THEME_KEY);
-    return VALID_THEMES.has(v) ? v : 'default';
+    // First-time visitors land on the Crimson theme; once they pick a
+    // theme it's persisted to THEME_KEY and respected on every visit.
+    return VALID_THEMES.has(v) ? v : 'crimson';
   }
   function getStoredMode() {
     const v = localStorage.getItem(MODE_KEY);
     if (v === 'light' || v === 'dark') return v;
-    // First-time visitors always land in light mode, even if their OS
-    // is set to dark. Once they pick a mode it's persisted to MODE_KEY
-    // and respected on every subsequent visit.
-    return 'light';
+    // First-time visitors land in dark mode regardless of OS preference.
+    // Once they pick a mode it's persisted to MODE_KEY and respected on
+    // every subsequent visit.
+    return 'dark';
   }
 
   function applyTheme(theme, mode, animate = false) {
