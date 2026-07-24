@@ -17,6 +17,16 @@ const PROVIDER_MODELS: Record<LLMProvider, string> = {
   gemini:    "gemini-2.0-flash",
 };
 
+// Max OUTPUT tokens per provider, set to each model's ceiling so long surveys
+// aren't silently cut off. A 50-question structured survey can run well past
+// 4k tokens; the previous Anthropic cap of 4096 was the main cause of
+// "missing questions". These are the documented maximums for the models above.
+const PROVIDER_MAX_OUTPUT: Record<LLMProvider, number> = {
+  openai:    16384, // gpt-4o-mini
+  anthropic: 8192,  // claude-3-5-haiku
+  gemini:    8192,  // gemini-2.0-flash
+};
+
 export interface LLMRequest {
   provider: LLMProvider;
   apiKey: string;
@@ -26,6 +36,10 @@ export interface LLMRequest {
 
 export interface LLMResult {
   text: string;
+  // True when the model stopped because it hit the output-token ceiling, i.e.
+  // the structured survey is almost certainly cut off mid-question. The caller
+  // surfaces this as a hard warning instead of silently accepting partial data.
+  truncated: boolean;
 }
 
 export async function callLLM(req: LLMRequest): Promise<LLMResult> {
@@ -52,12 +66,17 @@ async function callOpenAI({ apiKey, systemPrompt, userPrompt }: LLMRequest): Pro
         { role: "user",   content: userPrompt },
       ],
       temperature: 0.2,
+      max_tokens: PROVIDER_MAX_OUTPUT.openai,
     }),
   });
   if (!res.ok) throw await providerError("OpenAI", res, apiKey);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await res.json();
-  return { text: data?.choices?.[0]?.message?.content ?? "" };
+  const choice = data?.choices?.[0];
+  return {
+    text: choice?.message?.content ?? "",
+    truncated: choice?.finish_reason === "length",
+  };
 }
 
 async function callAnthropic({ apiKey, systemPrompt, userPrompt }: LLMRequest): Promise<LLMResult> {
@@ -70,7 +89,7 @@ async function callAnthropic({ apiKey, systemPrompt, userPrompt }: LLMRequest): 
     },
     body: JSON.stringify({
       model: PROVIDER_MODELS.anthropic,
-      max_tokens: 4096,
+      max_tokens: PROVIDER_MAX_OUTPUT.anthropic,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     }),
@@ -82,7 +101,7 @@ async function callAnthropic({ apiKey, systemPrompt, userPrompt }: LLMRequest): 
   const blocks = Array.isArray(data?.content) ? data.content : [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const text = blocks.filter((b: any) => b?.type === "text").map((b: any) => b.text).join("\n");
-  return { text };
+  return { text, truncated: data?.stop_reason === "max_tokens" };
 }
 
 async function callGemini({ apiKey, systemPrompt, userPrompt }: LLMRequest): Promise<LLMResult> {
@@ -99,17 +118,18 @@ async function callGemini({ apiKey, systemPrompt, userPrompt }: LLMRequest): Pro
       contents: [
         { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] },
       ],
-      generationConfig: { temperature: 0.2 },
+      generationConfig: { temperature: 0.2, maxOutputTokens: PROVIDER_MAX_OUTPUT.gemini },
     }),
   });
   if (!res.ok) throw await providerError("Gemini", res, apiKey);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await res.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parts = data?.candidates?.[0]?.content?.parts ?? [];
+  const candidate = data?.candidates?.[0];
+  const parts = candidate?.content?.parts ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const text = parts.map((p: any) => p?.text ?? "").join("");
-  return { text };
+  return { text, truncated: candidate?.finishReason === "MAX_TOKENS" };
 }
 
 /**

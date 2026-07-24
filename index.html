@@ -394,16 +394,27 @@
     .card-chevron {
       margin-left: auto;
       flex-shrink: 0;
-      width: 26px; height: 26px;
+      width: 30px; height: 30px;
+      padding: 0;
+      box-sizing: border-box;
       display: inline-flex; align-items: center; justify-content: center;
-      background: none;
-      border: none;
-      color: hsl(var(--muted-foreground));
+      background: hsl(var(--muted) / 0.7);
+      border: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: 8px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
+    .card-chevron:hover { background: hsl(var(--muted)); border-color: hsl(var(--muted-foreground) / 0.45); }
+    /* When the header is hovered, tint the toggle in the brand color so the
+       whole row visibly reads as an interactive collapse control. */
+    .card-head:hover .card-chevron { border-color: hsl(var(--primary) / 0.55); color: hsl(var(--primary)); }
     .card-chevron svg { width: 15px; height: 15px; transition: transform 0.25s ease; }
     .collapsible.is-collapsed > .card-head .card-chevron svg { transform: rotate(-90deg); }
+    /* A second action (e.g. Variables "Clear all") already owns the right-side
+       auto margin, so the chevron must not add another or the two split the
+       free space and the action floats mid-row. */
+    .card-head > .variables-clear + .card-chevron { margin-left: 0; }
     .collapsible.is-collapsed > :not(.card-head) { display: none !important; }
     /* Tighter padding + subtle tint once collapsed, so completed steps read as
        compact checklist rows rather than empty cards. */
@@ -1994,7 +2005,7 @@
     <div class="card-head" onclick="if(!event.target.closest('button,a,input,select,label'))toggleCard(this)">
       <h2><span class="step-chip" aria-hidden="true">1</span>Connection</h2>
       <span class="card-summary" id="connectionSummary"></span>
-      <button class="card-chevron" type="button" aria-label="Toggle section" tabindex="-1" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <button class="card-chevron" type="button" aria-label="Toggle section" aria-expanded="true" title="Collapse or expand this section" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <div class="row">
       <div class="field">
@@ -2049,7 +2060,7 @@
     <div class="card-head" onclick="if(!event.target.closest('button,a,input,select,label'))toggleCard(this)">
       <h2><span class="step-chip" aria-hidden="true">2</span>Survey Settings</h2>
       <span class="card-summary" id="settingsSummary"></span>
-      <button class="card-chevron" type="button" aria-label="Toggle section" tabindex="-1" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <button class="card-chevron" type="button" aria-label="Toggle section" aria-expanded="true" title="Collapse or expand this section" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <div class="row">
       <div class="field folder-row" style="grid-column: 1/-1; grid-template-columns: 1fr auto;">
@@ -2141,7 +2152,7 @@
       <details class="adv-settings">
         <summary>
           Advanced settings
-          <span class="adv-sub">Tracking, partial submission, API rate limit</span>
+          <span class="adv-sub">Tracking, partial submission, section layout, API rate limit</span>
           <svg class="adv-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
         </summary>
         <div class="adv-settings-body">
@@ -2171,7 +2182,29 @@
                 <div class="tooltip-bubble">Saves the respondent's progress even if they don't finish the survey. Sent as <code>settings.partial_submission</code>.</div>
               </div>
             </div>
-            <div class="field" style="margin-top:16px;max-width:220px">
+            <div class="settings-toggles-label" style="margin-top:18px">Section layout (all sections)</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="sectionSinglePageView" />
+              <label for="sectionSinglePageView">Single page view</label>
+              <div class="tooltip-wrap">
+                <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
+                <div class="tooltip-bubble">Show all questions in a section on one page. Applied to every section. Sent as each section's <code>properties.single_page_view</code>. A section can override this via <code>Single page view: Yes/No</code> in the prompt.</div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px;max-width:260px">
+              <div class="label-row">
+                <label for="sectionIntro">Section intro placement</label>
+                <div class="tooltip-wrap">
+                  <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
+                  <div class="tooltip-bubble">Whether a section's intro sits on its own page (Separate) or with its first questions (Same). Applied to every section. Sent as each section's <code>properties.section_intro</code>. A section can override this via <code>Section intro: Same/Separate</code> in the prompt.</div>
+                </div>
+              </div>
+              <select id="sectionIntro">
+                <option value="separate" selected>Separate page</option>
+                <option value="same">Same page</option>
+              </select>
+            </div>
+            <div class="field" style="margin-top:18px;max-width:220px">
               <div class="label-row">
                 <label for="apiCallsPerMinute">API calls per minute</label>
               </div>
@@ -2189,7 +2222,7 @@
       <h2><span class="step-chip" aria-hidden="true">3</span>Variables <span class="step-optional">Optional</span></h2>
       <span class="card-summary" id="variablesSummary"></span>
       <button type="button" id="variablesClearBtn" class="variables-clear" style="margin-left:auto" disabled>Clear all</button>
-      <button class="card-chevron" type="button" aria-label="Toggle section" tabindex="-1" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <button class="card-chevron" type="button" aria-label="Toggle section" aria-expanded="true" title="Collapse or expand this section" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
     <p class="variables-hint">SurveySparrow context fields applied automatically to every survey you create in this session. Define once — they ship with every Create.</p>
     <div class="variables-form">
@@ -2522,6 +2555,8 @@ Required: No"></textarea>
       </div>
 
       <div id="llmError" style="display:none;margin-top:10px;padding:9px 12px;background:hsl(var(--destructive) / 0.08);border:1px solid hsl(var(--destructive) / 0.3);border-radius:7px;font-size:12.5px;color:hsl(var(--destructive));line-height:1.5"></div>
+
+      <div id="llmValidationPanel" style="display:none;margin-top:10px"></div>
 
       <div class="llm-output" id="llmOutputSection" style="display:none">
         <div class="llm-output-label">Formatted output (preview)</div>
@@ -3459,6 +3494,8 @@ Required: No"></textarea>
     if (collapse) refreshCardSummary(card);
     card.classList.toggle('is-collapsed', collapse);
     headEl.setAttribute('aria-expanded', String(!collapse));
+    const chevron = headEl.querySelector('.card-chevron');
+    if (chevron) chevron.setAttribute('aria-expanded', String(!collapse));
   }
   /* Build the one-line summary shown when a card is collapsed. */
   function refreshCardSummary(card) {
@@ -3901,6 +3938,8 @@ Required: No"></textarea>
           trackIp: document.getElementById('trackIp').checked,
           trackLocation: document.getElementById('trackLocation').checked,
           partialSubmission: document.getElementById('partialSubmission').checked,
+          singlePageView: document.getElementById('sectionSinglePageView').checked,
+          sectionIntro: document.getElementById('sectionIntro').value,
           apiCallsPerMinute: getApiRate(),
         })
       });
@@ -4305,6 +4344,21 @@ Required: No"></textarea>
 Your job:
 Convert the uploaded PDF, Word document, pasted questionnaire, messy notes, or broad survey brief into a clean structured survey format.
 
+Core task (completeness is the single most important requirement):
+- Extract EVERY identifiable survey question from the source. Do not silently drop any question.
+- Preserve the original question wording unless cleanup is clearly needed for readability.
+- Preserve all answer options exactly as written.
+- Preserve required / optional status when the source states it.
+- Preserve sections and grouping when the source has them.
+- Preserve descriptions, scale labels, variables, and simple display logic when present.
+
+Hard rules (do not break these):
+- NEVER omit a question because its type is uncertain. Use a reasonable fallback type instead of dropping it (Short text for open answers, Long text for comments, Single choice for a small option list, Dropdown for a long one).
+- NEVER invent options when the source clearly contains none.
+- NEVER merge two separate questions into one.
+- NEVER split one question into several unless the source clearly does so.
+- NEVER introduce duplicate questions.
+
 Return only the final survey structure.
 Do not include explanations.
 Do not include JSON.
@@ -4324,6 +4378,8 @@ Thank You Message:
 Thank You Description:
 
 Section: Section name        (optional — only when the source content clearly indicates grouping, or the user explicitly asks for sections. Otherwise omit Section lines entirely.)
+Single page view: Yes        (optional, directly under a Section line — Yes or No. Default No. Puts every question in that section on one page.)
+Section intro: Same          (optional, directly under a Section line — Same or Separate. Default Separate. Whether the section intro shows on the same page as its questions.)
 
 Q1. Question text
 Type:
@@ -4535,6 +4591,8 @@ Thank You Message: Thank you for your feedback.
 Thank You Description: Your response has been recorded.
 
 Section: Product Experience
+Single page view: Yes
+Section intro: Same
 
 Q1. Hi $customer_name, what is your full name?
 Type: Short text
@@ -4614,7 +4672,21 @@ Q10. What is one thing we should improve?
 Type: Long text
 Required: No
 
-Now convert the uploaded document or pasted content into this format.`;
+Self-check before you return (do this silently — do NOT show your reasoning or reveal these steps):
+Verify and FIX your draft so that:
+1. Every question present in the source appears in your output — none dropped, none duplicated, none merged, none split.
+2. Question numbers are sequential starting at Q1 with no gaps.
+3. Every question has a Type line.
+4. Every question has Required: Yes or Required: No.
+5. Every option-based question (Single choice, Multiple choice, Dropdown, Rank order, Constant sum) has an Options list.
+6. Every Matrix / Bipolar matrix question has both Rows and Columns; Bipolar rows use "Left | Right".
+7. Variables use $name syntax, never {{name}}.
+8. Survey Type matches the selected type above.
+9. Your response is complete and not cut off — if the survey is long, make sure the final question is fully written and nothing is truncated.
+10. The output contains ONLY the structured survey inside one plain text code block — no preamble, no explanation, no closing remark, no JSON.
+Correct any violation, then return the corrected result.
+
+Now convert the uploaded document or pasted content into this format. Return only the final structured survey.`;
 
   /* Build the GPT/Claude cleanup prompt for a given Survey Type. The Survey Type
      dropdown controls which behavioral header is prepended so the LLM produces
@@ -4822,6 +4894,8 @@ Now convert the uploaded document or pasted content into this format.`;
   const LLM_PROVIDER_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Gemini' };
   let _llmFormatted = '';   // last successful output (kept across re-opens)
   let _llmExtractedText = ''; // text extracted from an uploaded file
+  let _llmInputTruncated = false; // uploaded file was cut to the 30k char cap
+  let _llmValidation = null; // last validation result from the server
 
   function openLlmFormatter() {
     // Sync the survey-type display from the main form.
@@ -4996,6 +5070,7 @@ Now convert the uploaded document or pasted content into this format.`;
   async function onLlmFileChange(ev) {
     setLlmError('');
     _llmExtractedText = '';
+    _llmInputTruncated = false;
     const status = document.getElementById('llmFileStatus');
     const file = ev.target.files?.[0];
     if (!file) { if (status) status.textContent = ''; return; }
@@ -5009,6 +5084,7 @@ Now convert the uploaded document or pasted content into this format.`;
         truncated = true;
       }
       _llmExtractedText = text;
+      _llmInputTruncated = truncated;
       if (status) {
         status.innerHTML = `Extracted <b>${text.length.toLocaleString()}</b> characters from <b>${escHtml(file.name)}</b>.` +
           (truncated ? ' <span style="color:hsl(38 92% 30%)">Truncated to the 30,000-character limit.</span>' : '');
@@ -5037,6 +5113,8 @@ Now convert the uploaded document or pasted content into this format.`;
 
   async function doLlmFormat() {
     setLlmError('');
+    _llmValidation = null;
+    renderLlmValidation();
     const provider = document.getElementById('llmProvider')?.value || 'openai';
     const apiKey = (document.getElementById('llmApiKey')?.value || '').trim();
     const surveyType = document.getElementById('surveyType')?.value || 'ClassicForm';
@@ -5068,14 +5146,23 @@ Now convert the uploaded document or pasted content into this format.`;
         return;
       }
       _llmFormatted = data.formattedPrompt || '';
+      const activeTab = document.querySelector('.llm-tab.active')?.getAttribute('data-tab') || 'paste';
+      _llmValidation = {
+        valid: data.valid !== false,
+        issues: Array.isArray(data.issues) ? data.issues : [],
+        warnings: Array.isArray(data.warnings) ? data.warnings : [],
+        truncated: !!data.truncated,
+        possibleQuestionLoss: !!data.possibleQuestionLoss,
+        outputQuestionCount: data.outputQuestionCount ?? null,
+        sourceQuestionEstimate: data.sourceQuestionEstimate ?? null,
+        inputTruncated: activeTab === 'upload' && _llmInputTruncated,
+      };
       const out = document.getElementById('llmFormattedOutput');
       if (out) out.value = _llmFormatted;
-      document.getElementById('llmOutputSection').style.display = 'block';
+      document.getElementById('llmOutputSection').style.display = _llmFormatted ? 'block' : 'none';
       document.getElementById('llmInsertBtn').disabled = !_llmFormatted;
       document.getElementById('llmCopyBtn').disabled = !_llmFormatted;
-      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
-        setLlmError(data.warnings.join(' '));
-      }
+      renderLlmValidation();
       // Save the key NOW (after a successful call) if remember is checked.
       persistRememberedKey();
     } catch (err) {
@@ -5088,10 +5175,62 @@ Now convert the uploaded document or pasted content into this format.`;
     }
   }
 
+  /* Render the post-format validation panel. Green when the output looks
+     complete; amber for soft warnings (possible question loss, truncated
+     input); red when the structure is incomplete or invalid. Issues are
+     listed specifically so the user can decide whether to retry. */
+  function renderLlmValidation() {
+    const panel = document.getElementById('llmValidationPanel');
+    if (!panel) return;
+    const v = _llmValidation;
+    if (!v) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+    const issues = [...v.issues];
+    const warnings = [...v.warnings];
+    if (v.inputTruncated) {
+      warnings.push('Your uploaded file was truncated to the 30,000-character limit before formatting — questions past that point were not sent. Split the source and format it in batches.');
+    }
+
+    const list = (arr) => `<ul style="margin:6px 0 0;padding-left:18px;line-height:1.6">${arr.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`;
+    const countLine = (v.outputQuestionCount != null)
+      ? `<div style="margin-top:6px;font-size:12px;opacity:0.85">${v.outputQuestionCount} question${v.outputQuestionCount === 1 ? '' : 's'} detected in the output${v.sourceQuestionEstimate ? ` · ~${v.sourceQuestionEstimate} estimated in the source` : ''}.</div>`
+      : '';
+
+    let html = '';
+    if (issues.length > 0) {
+      html = `<div style="padding:10px 12px;background:hsl(var(--destructive) / 0.08);border:1px solid hsl(var(--destructive) / 0.35);border-radius:8px;font-size:12.5px;color:hsl(var(--destructive))">
+        <b>The LLM output appears incomplete or invalid.</b> Review it before inserting — or adjust your input and format again.
+        ${list(issues)}${countLine}</div>`;
+      if (warnings.length > 0) {
+        html += `<div style="margin-top:8px;padding:10px 12px;background:hsl(var(--warning) / 0.1);border:1px solid hsl(var(--warning) / 0.35);border-radius:8px;font-size:12.5px;color:hsl(38 92% 30%)">${list(warnings)}</div>`;
+      }
+    } else if (warnings.length > 0) {
+      html = `<div style="padding:10px 12px;background:hsl(var(--warning) / 0.1);border:1px solid hsl(var(--warning) / 0.35);border-radius:8px;font-size:12.5px;color:hsl(38 92% 30%)">
+        <b>Review before inserting.</b>${list(warnings)}${countLine}</div>`;
+    } else {
+      html = `<div style="padding:10px 12px;background:hsl(var(--success) / 0.1);border:1px solid hsl(var(--success) / 0.3);border-radius:8px;font-size:12.5px;color:hsl(var(--success))">
+        <b>Output looks complete.</b>${countLine}</div>`;
+    }
+    panel.innerHTML = html;
+    panel.style.display = 'block';
+    // In dark mode the amber-on-light text is hard to read; nudge it lighter.
+    if (document.documentElement.classList.contains('dark')) {
+      panel.querySelectorAll('[style*="38 92% 30%"]').forEach(el => { el.style.color = 'hsl(38 92% 72%)'; });
+    }
+  }
+
   function insertLlmIntoPrompt() {
     if (!_llmFormatted) return;
     const ta = document.getElementById('prompt');
     if (!ta) return;
+    // Gate insertion when the output is flagged incomplete/invalid or lossy —
+    // never silently drop partial output into the prompt.
+    const v = _llmValidation;
+    if (v && (!v.valid || v.truncated || v.possibleQuestionLoss || v.inputTruncated)) {
+      const reasons = [...v.issues, ...v.warnings];
+      const summary = reasons.length ? '\n\n• ' + reasons.slice(0, 6).join('\n• ') : '';
+      if (!confirm(`This output was flagged as incomplete or lossy:${summary}\n\nInsert it into the Structured Prompt anyway?`)) return;
+    }
     if (ta.value.trim() && !confirm('This will replace the current structured prompt. Continue?')) return;
     ta.value = _llmFormatted;
     ta.dispatchEvent(new Event('input', { bubbles: true }));
@@ -5329,6 +5468,7 @@ Now convert the uploaded document or pasted content into this format.`;
     let thankYouMessage = '';
     let currentSection = '';
     const sectionNames = [];
+    const sectionConfig = {};
     const questions = [];
     let currentQ = null;
     let mode = null;
@@ -5336,6 +5476,8 @@ Now convert the uploaded document or pasted content into this format.`;
     const RE_SURVEY_TITLE  = /^survey title\s*:/i;
     const RE_SURVEY_TYPE   = /^survey type\s*:/i;
     const RE_SECTION       = /^(section|page|block)\s*:/i;
+    const RE_SECTION_SPV   = /^single[\s_-]*page[\s_-]*view\s*:/i;
+    const RE_SECTION_INTRO = /^section[\s_-]*intro\s*:/i;
     const RE_FIELD_TYPE    = /^(type|question type|answer type|input type|field type|question format)\s*:/i;
     const RE_FIELD_OPTS    = /^(options|choices|answer options|response options|select from|options are)\s*:/i;
     const RE_FIELD_ROWS    = /^(rows|statements|items|aspects)\s*:/i;
@@ -5365,11 +5507,29 @@ Now convert the uploaded document or pasted content into this format.`;
       if (RE_FIELD_WLCT.test(line))   { welcomeTitle = line.replace(RE_FIELD_WLCT, '').trim(); continue; }
       if (RE_FIELD_TYM.test(line))    { thankYouMessage = line.replace(RE_FIELD_TYM, '').trim(); continue; }
 
+      if (RE_SECTION_SPV.test(line)) {
+        if (currentSection && sectionConfig[currentSection]) {
+          const v = line.replace(RE_SECTION_SPV, '').trim().toLowerCase();
+          sectionConfig[currentSection].singlePageView = /^(yes|y|true|1|on|enabled?)$/.test(v);
+        }
+        continue;
+      }
+      if (RE_SECTION_INTRO.test(line)) {
+        if (currentSection && sectionConfig[currentSection]) {
+          const v = line.replace(RE_SECTION_INTRO, '').trim().toLowerCase();
+          sectionConfig[currentSection].sectionIntro = v === 'same' ? 'same' : 'separate';
+        }
+        continue;
+      }
+
       if (RE_SECTION.test(line)) {
         const secName = line.replace(RE_SECTION, '').trim();
         if (secName) {
           currentSection = secName;
           if (!sectionNames.includes(secName)) sectionNames.push(secName);
+          // Empty = no explicit override; the setting lines populate it only
+          // when present. Missing fields fall back to the global UI default.
+          if (!sectionConfig[secName]) sectionConfig[secName] = {};
         }
         continue;
       }
@@ -5448,7 +5608,7 @@ Now convert the uploaded document or pasted content into this format.`;
       return { ...enrichedQ, confidence, parserWarnings, typeInferred: inferred, typeSynonym: synonym };
     });
 
-    return { title, surveyType, questions: enriched, sections: sectionNames, welcomeTitle, thankYouMessage };
+    return { title, surveyType, questions: enriched, sections: sectionNames, sectionConfig, welcomeTitle, thankYouMessage };
   }
 
   function validateFormat() {
@@ -5522,6 +5682,42 @@ Now convert the uploaded document or pasted content into this format.`;
     if (parsed.welcomeTitle) metaParts.push(`Welcome: <b>Yes</b>`);
     if (parsed.thankYouMessage) metaParts.push(`Thank-you: <b>Yes</b>`);
     const metaHtml = `<div class="preview-meta">${metaParts.join(' &nbsp;·&nbsp; ')}</div>`;
+
+    // Per-section settings summary — shows single-page-view and intro placement
+    // for every section so they're visible before creating the survey.
+    const sectionsSummaryHtml = parsed.sections.length > 0 ? (() => {
+      // Effective values: per-section prompt override wins; otherwise the
+      // global Survey Settings → Section layout controls.
+      const globalSpv = !!document.getElementById('sectionSinglePageView')?.checked;
+      const globalIntro = document.getElementById('sectionIntro')?.value === 'same' ? 'same' : 'separate';
+      const dim = 'color:hsl(var(--muted-foreground))';
+      const rows = parsed.sections.map((name, i) => {
+        const cfg = (parsed.sectionConfig && parsed.sectionConfig[name]) || {};
+        const spvOverridden = cfg.singlePageView !== undefined;
+        const introOverridden = cfg.sectionIntro !== undefined;
+        const spvVal = spvOverridden ? cfg.singlePageView : globalSpv;
+        const introVal = introOverridden ? cfg.sectionIntro : globalIntro;
+        const spv = spvVal ? 'Yes' : 'No';
+        const intro = introVal === 'same' ? 'Same' : 'Separate';
+        const tag = (o) => o ? ' <span style="font-size:10px;color:hsl(var(--primary))">override</span>' : '';
+        return `<tr>
+          <td style="text-align:center;${dim};font-feature-settings:'tnum'">${i + 1}</td>
+          <td>${escHtml(name)}</td>
+          <td style="text-align:center${spvVal ? ';font-weight:600' : ';' + dim}">${spv}${tag(spvOverridden)}</td>
+          <td style="text-align:center${introVal === 'same' ? ';font-weight:600' : ';' + dim}">${intro}${tag(introOverridden)}</td>
+        </tr>`;
+      }).join('');
+      return `<details class="parse-preview" open style="margin-top:10px">
+        <summary>Sections — ${parsed.sections.length} · single-page view &amp; intro placement</summary>
+        <div class="preview-table-wrap">
+          <table class="preview-table">
+            <thead><tr><th style="text-align:center">#</th><th>Section</th><th style="text-align:center">Single page view</th><th style="text-align:center">Section intro</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="padding:6px 14px 10px;font-size:11.5px;color:hsl(var(--muted-foreground))">Defaults come from Survey Settings → Section layout. A section can override them in the prompt with <code>Single page view:</code> / <code>Section intro:</code> lines.</div>
+      </details>`;
+    })() : '';
 
     const allQIds = new Set(parsed.questions.map(q => `Q${q.localId}`));
 
@@ -5607,7 +5803,7 @@ Now convert the uploaded document or pasted content into this format.`;
     previewEl.innerHTML = `<details class="parse-preview" open>
       <summary>Parsed survey preview — ${parsed.questions.length} question${parsed.questions.length !== 1 ? 's' : ''} detected</summary>
       ${lowWarningHtml}${curlyNoticeHtml}${nativeScoreNoticeHtml}${metaHtml}${tableHtml}
-    </details>`;
+    </details>${sectionsSummaryHtml}`;
     previewEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     if (hasLow) playErrorChime(); else playSuccessChime();

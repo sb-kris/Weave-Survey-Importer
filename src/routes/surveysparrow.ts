@@ -135,6 +135,7 @@ router.post("/create-survey", async (req, res) => {
   const {
     region, apiKey, surveyFolderId, surveyType, surveyTitle, primaryLanguage,
     prompt, displayLogicEnabled, trackIp, trackLocation, partialSubmission,
+    singlePageView, sectionIntro,
   } = req.body as {
     region?: string;
     apiKey?: string;
@@ -147,7 +148,16 @@ router.post("/create-survey", async (req, res) => {
     trackIp?: boolean;
     trackLocation?: boolean;
     partialSubmission?: boolean;
+    // Survey-wide section defaults from the Survey Settings UI. Applied to
+    // every section unless that section overrides them via prompt syntax.
+    singlePageView?: boolean;
+    sectionIntro?: string;
   };
+
+  // Normalize the survey-wide section defaults. Match the documented API
+  // defaults (single_page_view false, section_intro "separate").
+  const globalSinglePageView = singlePageView === true;
+  const globalSectionIntro: "same" | "separate" = sectionIntro === "same" ? "same" : "separate";
 
   if (!region || !apiKey || !prompt) {
     res.status(400).json({ error: "region, apiKey, and prompt are required" });
@@ -176,6 +186,12 @@ router.post("/create-survey", async (req, res) => {
   parsed.thankYouMessage    = normalize(parsed.thankYouMessage);
   parsed.thankYouDescription = normalize(parsed.thankYouDescription);
   parsed.sections = parsed.sections.map((s) => normalize(s));
+  // Re-key section config with the same placeholder-normalized names so lookups
+  // during section creation match `parsed.sections`. Uses the non-counting
+  // helper so it doesn't inflate the placeholder-conversion tally.
+  parsed.sectionConfig = Object.fromEntries(
+    Object.entries(parsed.sectionConfig).map(([k, v]) => [normalizePlaceholdersInString(k).out, v]),
+  );
   for (const q of parsed.questions) {
     q.text        = normalize(q.text);
     q.description = normalize(q.description);
@@ -314,37 +330,69 @@ router.post("/create-survey", async (req, res) => {
     }
   }
 
-  // V2: Create sections
+  // V2: Create sections.
+  //
+  // SurveySparrow's POST /v3/sections caps the `sections` array at 20 items per
+  // request. That is a per-REQUEST batch limit, NOT a per-section question limit
+  // and NOT a survey-wide section limit — so a survey with >20 sections is
+  // created by sending several sequential batches of up to 20.
+  //
+  // Each batch carries GLOBAL positions (start + j + 1) so ordering is preserved
+  // across batches. Returned IDs are mapped back to their section names by
+  // within-batch index (mirroring the previous single-request logic). If a batch
+  // fails, its sections are simply left out of sectionIdMap — the question loop
+  // then creates their questions with no section_id (section-less) rather than
+  // assigning them to the wrong section — and we surface a clear per-batch warning.
+  const SECTION_BATCH_SIZE = 20;
   const sectionIdMap: Record<string, number | string> = {};
   let sectionsCreated = 0;
   if (parsed.sections.length > 0) {
-    const sectionsPayload = {
-      survey_id: Number(surveyId),
-      sections: parsed.sections.map((name, i) => ({
-        name,
-        description: "",
-        position: i + 1,
-        properties: { label: "Next", section_randomise: false, single_page_view: false, section_intro: "separate" },
-      })),
-    };
-    try {
-      const sResult = await ssPost(baseUrl, apiKey, "/v3/sections", sectionsPayload);
-      debugLog.push({ step: "Create Sections", endpoint: "POST /v3/sections", status: sResult.status, payload: sectionsPayload, response: sResult.data });
-      if (sResult.ok) {
-        const createdItems: Record<string, unknown>[] = Array.isArray(sResult.data?.data) ? sResult.data.data : [];
-        createdItems.forEach((s, i) => {
-          const name = parsed.sections[i] ?? (s.name as string);
-          const sid = s.id as number | string | undefined;
-          if (name && sid !== undefined) sectionIdMap[name] = sid;
-        });
-        sectionsCreated = Object.keys(sectionIdMap).length;
-      } else {
-        warnings.push("Section creation failed — questions will be created without section assignment");
+    const totalBatches = Math.ceil(parsed.sections.length / SECTION_BATCH_SIZE);
+    for (let start = 0; start < parsed.sections.length; start += SECTION_BATCH_SIZE) {
+      const batchNames = parsed.sections.slice(start, start + SECTION_BATCH_SIZE);
+      const batchNum = Math.floor(start / SECTION_BATCH_SIZE) + 1;
+      const rangeLabel = `sections ${start + 1}–${start + batchNames.length}`;
+      const stepLabel = totalBatches > 1 ? `Create Sections (batch ${batchNum}/${totalBatches})` : "Create Sections";
+      const sectionsPayload = {
+        survey_id: Number(surveyId),
+        sections: batchNames.map((name, j) => {
+          const cfg = parsed.sectionConfig[name] ?? {};
+          // Per-section prompt override wins; otherwise the survey-wide UI
+          // default; otherwise the documented API default.
+          return {
+            name,
+            description: "",
+            position: start + j + 1, // global position, preserved across batches
+            properties: {
+              label: "Next",
+              section_randomise: false,
+              single_page_view: cfg.singlePageView ?? globalSinglePageView,
+              section_intro: cfg.sectionIntro ?? globalSectionIntro,
+              skip_section: false,
+            },
+          };
+        }),
+      };
+      try {
+        const sResult = await ssPost(baseUrl, apiKey, "/v3/sections", sectionsPayload);
+        debugLog.push({ step: stepLabel, endpoint: "POST /v3/sections", status: sResult.status, payload: sectionsPayload, response: sResult.data });
+        if (sResult.ok) {
+          const createdItems: Record<string, unknown>[] = Array.isArray(sResult.data?.data) ? sResult.data.data : [];
+          createdItems.forEach((s, j) => {
+            const name = batchNames[j] ?? (s.name as string);
+            const sid = s.id as number | string | undefined;
+            if (name && sid !== undefined) sectionIdMap[name] = sid;
+          });
+        } else {
+          const detail = typeof sResult.data === "string" ? sResult.data : JSON.stringify(sResult.data);
+          warnings.push(`Section batch ${batchNum}/${totalBatches} (${rangeLabel}) failed (HTTP ${sResult.status}) — those sections were not created and their questions will be created without a section. ${detail}`.trim());
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        warnings.push(`Section batch ${batchNum}/${totalBatches} (${rangeLabel}) errored — those sections were not created and their questions will be created without a section: ${msg}`);
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      warnings.push(`Section creation error — questions will be created without section assignment: ${msg}`);
     }
+    sectionsCreated = Object.keys(sectionIdMap).length;
   }
 
   // Per-question record built during the create loop and consumed by the
@@ -1657,11 +1705,22 @@ interface ParsedQuestion {
   feedbackDissatisfied?: string;
 }
 
+interface SectionConfig {
+  // Only present when the prompt explicitly sets them for a section; when
+  // undefined the survey-wide UI default (globalSinglePageView / globalSectionIntro)
+  // is applied at section-creation time.
+  singlePageView?: boolean;         // properties.single_page_view
+  sectionIntro?: "same" | "separate"; // properties.section_intro
+}
+
 interface ParsedPrompt {
   title: string;
   surveyType: string;
   questions: ParsedQuestion[];
   sections: string[];
+  // Per-section settings keyed by section name (same key space as `sections`).
+  // Every name in `sections` has an entry; missing fields fall back to defaults.
+  sectionConfig: Record<string, SectionConfig>;
   welcomeTitle: string;
   welcomeDescription: string;
   thankYouMessage: string;
@@ -1713,6 +1772,7 @@ function parsePrompt(rawPrompt: string): ParsedPrompt {
   let thankYouDescription = "";
   let currentSection = "";
   const sectionNames: string[] = [];
+  const sectionConfig: Record<string, SectionConfig> = {};
   const questions: ParsedQuestion[] = [];
   let currentQ: ParsedQuestion | null = null;
   let mode: "options" | "rows" | "columns" | null = null;
@@ -1720,6 +1780,8 @@ function parsePrompt(rawPrompt: string): ParsedPrompt {
   const RE_SURVEY_TITLE  = /^survey title\s*:/i;
   const RE_SURVEY_TYPE   = /^survey type\s*:/i;
   const RE_SECTION       = /^(section|page|block)\s*:/i;
+  const RE_SECTION_SPV   = /^single[\s_-]*page[\s_-]*view\s*:/i;
+  const RE_SECTION_INTRO = /^section[\s_-]*intro\s*:/i;
   const RE_FIELD_TYPE    = /^(type|question type|answer type|input type|field type|question format)\s*:/i;
   const RE_FIELD_OPTS    = /^(options|choices|answer options|response options|select from|options are)\s*:/i;
   const RE_FIELD_ROWS    = /^(rows|statements|items|aspects)\s*:/i;
@@ -1784,12 +1846,36 @@ function parsePrompt(rawPrompt: string): ParsedPrompt {
     if (RE_FIELD_TYM.test(line))    { thankYouMessage = line.replace(RE_FIELD_TYM, "").trim(); continue; }
     if (RE_FIELD_TYD.test(line))    { thankYouDescription = line.replace(RE_FIELD_TYD, "").trim(); continue; }
 
+    // Section-level settings — checked BEFORE RE_SECTION. (RE_SECTION doesn't
+    // match "Section intro:" anyway since it needs `section` directly before
+    // the colon, but ordering these first makes the intent explicit.) They
+    // apply to the most recent section; ignored if no section is open yet.
+    if (RE_SECTION_SPV.test(line)) {
+      if (currentSection && sectionConfig[currentSection]) {
+        const v = line.replace(RE_SECTION_SPV, "").trim().toLowerCase();
+        sectionConfig[currentSection].singlePageView = /^(yes|y|true|1|on|enabled?)$/.test(v);
+      }
+      continue;
+    }
+    if (RE_SECTION_INTRO.test(line)) {
+      if (currentSection && sectionConfig[currentSection]) {
+        const v = line.replace(RE_SECTION_INTRO, "").trim().toLowerCase();
+        // Only "same" flips it; anything else (incl. "separate") keeps the default.
+        sectionConfig[currentSection].sectionIntro = v === "same" ? "same" : "separate";
+      }
+      continue;
+    }
+
     // Section headers
     if (RE_SECTION.test(line)) {
       const secName = line.replace(RE_SECTION, "").trim();
       if (secName) {
         currentSection = secName;
         if (!sectionNames.includes(secName)) sectionNames.push(secName);
+        // Empty config = "no explicit override"; the two setting lines above
+        // populate it only when present. Missing fields fall back to the
+        // survey-wide UI default at section-creation time.
+        if (!sectionConfig[secName]) sectionConfig[secName] = {};
       }
       continue;
     }
@@ -1880,7 +1966,7 @@ function parsePrompt(rawPrompt: string): ParsedPrompt {
   }
 
   if (currentQ) questions.push(currentQ);
-  return { title, surveyType, questions, sections: sectionNames, welcomeTitle, welcomeDescription, thankYouMessage, thankYouDescription };
+  return { title, surveyType, questions, sections: sectionNames, sectionConfig, welcomeTitle, welcomeDescription, thankYouMessage, thankYouDescription };
 }
 
 function parseShowIf(cond: string): ShowIf | null {
