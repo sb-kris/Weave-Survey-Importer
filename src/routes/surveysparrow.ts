@@ -435,6 +435,17 @@ router.post("/create-survey", async (req, res) => {
       finalWarning = compatibilityNote;
     }
 
+    // A Type the importer doesn't recognise (e.g. "Stars") was silently
+    // guessed as text/choice above. Report it as a fallback with a suggestion
+    // instead of a green success, so the user knows to check the question.
+    const unknownType = unrecognisedTypeName(q);
+    if (unknownType && result.status !== "failed") {
+      const suggestion = suggestTypeName(unknownType);
+      const createdAs = q.options.length > 0 ? "a Single choice" : "a Short text";
+      finalStatus = "created_fallback";
+      finalWarning = `"${unknownType}" isn't a question type the importer recognises, so it was created as ${createdAs} question.${suggestion ? ` Did you mean ${suggestion}?` : ""} Check it in SurveySparrow.`;
+    }
+
     // Track stats
     if (finalStatus === "created_enriched") enrichedCount++;
     else if (finalStatus === "created_compatible") compatibleCount++;
@@ -443,7 +454,7 @@ router.post("/create-survey", async (req, res) => {
     questionResults.push({
       localId: q.localId,
       text: q.text,
-      intendedType: originalIntendedType,
+      intendedType: unknownType ?? originalIntendedType,
       createdType: result.createdType,
       status: finalStatus,
       warning: finalWarning,
@@ -486,6 +497,7 @@ router.post("/create-survey", async (req, res) => {
     sourceId: number | string | null;
     status: "applied" | "skipped" | "failed";
     reason?: string;
+    rawReason?: string; // raw API body, for the debug view only
   };
   const displayLogicDetails: DisplayLogicDetail[] = [];
   let dlAttempted = 0;
@@ -594,12 +606,30 @@ router.post("/create-survey", async (req, res) => {
       };
       const logicEndpoint = `/v3/questions/${targetEntry.id}`;
       try {
-        const lResult = await ssPut(baseUrl, apiKey, logicEndpoint, logicPayload);
+        // SurveySparrow intermittently answers 404 "Question with id … is not
+        // found or not a previous question" for a source question created a
+        // moment earlier — the same prompt applies cleanly on a re-run, so the
+        // API simply hasn't registered the new question yet. Retry only that
+        // error, with a short backoff (each attempt still goes through the
+        // rate limiter). Any other failure is reported straight away.
+        const MAX_LOGIC_ATTEMPTS = 3;
+        let lResult = await ssPut(baseUrl, apiKey, logicEndpoint, logicPayload);
         debugLog.push({ step: `Apply Display Logic Q${q.localId}`, endpoint: `PUT ${logicEndpoint}`, status: lResult.status, payload: logicPayload, response: lResult.data });
+        for (let attempt = 2; attempt <= MAX_LOGIC_ATTEMPTS && !lResult.ok && isTransientLogicError(lResult.status, lResult.data); attempt++) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt - 1)));
+          lResult = await ssPut(baseUrl, apiKey, logicEndpoint, logicPayload);
+          debugLog.push({ step: `Apply Display Logic Q${q.localId} (retry ${attempt - 1})`, endpoint: `PUT ${logicEndpoint}`, status: lResult.status, payload: logicPayload, response: lResult.data });
+        }
         if (!lResult.ok) {
           dlFailed++;
-          warnings.push(`Q${q.localId}: display logic failed — ${JSON.stringify(lResult.data)}`);
-          displayLogicDetails.push({ localId: q.localId, targetId: targetEntry.id, sourceRef: sourceKey, sourceId: sourceEntry.id, status: "failed", reason: typeof lResult.data === "string" ? lResult.data : JSON.stringify(lResult.data) });
+          const raw = typeof lResult.data === "string" ? lResult.data : JSON.stringify(lResult.data);
+          // Plain-language reason for the results screen; the raw API body
+          // stays in the debug log.
+          const reason = isTransientLogicError(lResult.status, lResult.data)
+            ? `SurveySparrow didn't recognise ${sourceKey} as an earlier question, even after retrying. Add this rule in the SurveySparrow builder.`
+            : `SurveySparrow rejected this rule (HTTP ${lResult.status}). Add it in the SurveySparrow builder.`;
+          warnings.push(`Q${q.localId}: display logic not applied — ${reason}`);
+          displayLogicDetails.push({ localId: q.localId, targetId: targetEntry.id, sourceRef: sourceKey, sourceId: sourceEntry.id, status: "failed", reason, rawReason: raw });
         } else {
           logicsApplied++;
           displayLogicDetails.push({ localId: q.localId, targetId: targetEntry.id, sourceRef: sourceKey, sourceId: sourceEntry.id, status: "applied" });
@@ -1440,29 +1470,75 @@ function getCompatibleQuestionType(
   return { q, remappedType: intendedType };
 }
 
+const TYPE_NAME_SYNONYMS: Record<string, string> = {
+  "radio": "single choice", "radio button": "single choice",
+  "checkbox": "multiple choice", "checkboxes": "multiple choice",
+  "multi-select": "multiple choice", "select all that apply": "multiple choice",
+  "free text": "long text", "comment box": "long text",
+  "paragraph": "long text", "open-ended": "long text",
+  "text": "short text",
+  "star rating": "rating", "scale": "rating",
+  "ranking": "rank order", "rank": "rank order",
+  "file": "file upload", "upload": "file upload", "attachment": "file upload",
+  "boolean": "yes/no", "y/n": "yes/no",
+  "date picker": "date",
+  "website": "url",
+  // Explicit feedback-type names emitted by the formatting prompt
+  "nps feedback": "npsfeedback",
+  "ces feedback": "cesfeedback",
+  "csat feedback": "csatfeedback",
+};
+
+// Every type name inferType() maps explicitly (after synonyms). Anything else
+// that the user wrote as a Type falls through to TextInput/MultiChoice, which
+// is a silent guess — unrecognisedTypeName() lets the create loop report it.
+const KNOWN_TYPE_NAMES = new Set([
+  "likert", "single choice", "multiple choice", "dropdown", "rating", "opinion scale",
+  "nps", "csat", "ces", "npsfeedback", "csatfeedback", "cesfeedback", "yes/no",
+  "short text", "long text", "email", "phone", "number", "url", "date",
+  "file upload", "image upload", "audio upload", "signature", "consent",
+  "rank order", "matrix", "bipolar matrix", "constant sum", "slider", "message",
+  "contact form",
+]);
+
+/** The raw Type the user wrote, if it isn't one the importer recognises. */
+function unrecognisedTypeName(q: ParsedQuestion): string | null {
+  const raw = q.type.toLowerCase().trim();
+  if (!raw) return null; // no Type given: inference is expected, not an error
+  const t = TYPE_NAME_SYNONYMS[raw] ?? raw;
+  return KNOWN_TYPE_NAMES.has(t) ? null : q.type.trim();
+}
+
+/** Best-guess supported type for an unrecognised name, for a "did you mean". */
+function suggestTypeName(raw: string): string | null {
+  const r = raw.toLowerCase();
+  const hints: Array<[RegExp, string]> = [
+    [/star|score|grade|stars/, "Rating"],
+    [/likert|agree|scale|range/, "Opinion scale"],
+    [/check|multi|select all/, "Multiple choice"],
+    [/radio|choice|option|pick/, "Single choice"],
+    [/drop|select|list/, "Dropdown"],
+    [/paragraph|essay|comment|long|textarea/, "Long text"],
+    [/text|string|input|name/, "Short text"],
+    [/bool|yes|no|toggle/, "Yes/No"],
+    [/upload|file|photo|image|attach/, "File upload"],
+    [/rank|order|priorit/, "Rank order"],
+    [/grid|table/, "Matrix"],
+    [/mail/, "Email"],
+    [/phone|mobile|tel/, "Phone"],
+    [/date|time|calendar/, "Date"],
+    [/num|count|integer|amount/, "Number"],
+    [/link|website|url/, "URL"],
+  ];
+  for (const [re, name] of hints) if (re.test(r)) return name;
+  return null;
+}
+
 function inferType(q: ParsedQuestion): string {
   const raw = q.type.toLowerCase().trim();
 
-  const synonymMap: Record<string, string> = {
-    "radio": "single choice", "radio button": "single choice",
-    "checkbox": "multiple choice", "checkboxes": "multiple choice",
-    "multi-select": "multiple choice", "select all that apply": "multiple choice",
-    "free text": "long text", "comment box": "long text",
-    "paragraph": "long text", "open-ended": "long text",
-    "text": "short text",
-    "star rating": "rating", "scale": "rating",
-    "ranking": "rank order", "rank": "rank order",
-    "file": "file upload", "upload": "file upload", "attachment": "file upload",
-    "boolean": "yes/no", "y/n": "yes/no",
-    "date picker": "date",
-    "website": "url",
-    // Explicit feedback-type names emitted by the formatting prompt
-    "nps feedback": "npsfeedback",
-    "ces feedback": "cesfeedback",
-    "csat feedback": "csatfeedback",
-  };
 
-  const t = synonymMap[raw] ?? raw;
+  const t = TYPE_NAME_SYNONYMS[raw] ?? raw;
 
   if (t === "likert") return (q.rows.length > 0 && q.columns.length > 0) ? "Matrix" : "OpinionScale";
 
@@ -1982,6 +2058,18 @@ function parseShowIf(cond: string): ShowIf | null {
     if (m) return { source: m[1], operator: p.operator, value: m[3].trim() };
   }
   return null;
+}
+
+/**
+ * True for SurveySparrow's transient display-logic rejection: a 404 saying the
+ * source question "is not found or not a previous question" for a question we
+ * created moments earlier. Observed intermittently (the identical prompt
+ * applies cleanly on a re-run), so it is safe to retry.
+ */
+function isTransientLogicError(status: number | string, data: unknown): boolean {
+  if (Number(status) !== 404) return false;
+  const msg = typeof data === "string" ? data : JSON.stringify(data ?? "");
+  return /not found or not a previous question/i.test(msg);
 }
 
 function mapDisplayLogicComparator(sourceType: string, operator: string, rawValue: string): { comparator: string; value: unknown } {
