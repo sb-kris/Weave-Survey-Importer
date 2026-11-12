@@ -1377,6 +1377,14 @@
     .fmt-step-title { font-size: 14.5px; font-weight: 600; color: hsl(var(--foreground)); }
     .fmt-step-body p { margin-top: 2px; font-size: 13.5px; line-height: 1.55; color: hsl(var(--muted-foreground)); }
     .fmt-step-body p b { color: hsl(var(--foreground)); }
+    .fmt-example {
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 8px; margin-bottom: 8px; padding: 10px 12px;
+      background: hsl(var(--muted)); border-radius: 8px;
+      font-size: 13px; line-height: 1.5; color: hsl(var(--foreground));
+    }
+    .fmt-example span { flex: 1; min-width: 0; }
+    .fmt-example .fmt-link { flex-shrink: 0; padding: 4px 6px; }
     .fmt-step-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
     .fmt-link {
       font: inherit; font-size: 13px; font-weight: 600;
@@ -2839,8 +2847,13 @@ $account_name"></textarea>
       <li class="fmt-step">
         <span class="fmt-num" aria-hidden="true">3</span>
         <div class="fmt-step-body">
-          <div class="fmt-step-title">Paste the prompt and add your survey</div>
-          <p>Paste the prompt, then attach your questionnaire (PDF, Word, Excel or CSV) or describe the survey you want. Send it.</p>
+          <div class="fmt-step-title">Ask it to turn your survey into Weave's format</div>
+          <p>Paste the prompt into the chat. Then attach your questionnaire (PDF, Word, Excel or CSV), or describe the survey you want, and add a line asking it to format the survey. For example:</p>
+          <div class="fmt-example">
+            <span id="fmtExampleText">Use the instructions above to turn my survey into the Weave import format. Reply with only the formatted survey.</span>
+            <button class="fmt-link" type="button" onclick="copyFmtExample(this)">Copy</button>
+          </div>
+          <p>If the reply isn't a list of questions starting with <b>Survey Title:</b> and <b>Q1.</b>, ask it to "use the exact format from the prompt" and try again.</p>
         </div>
       </li>
       <li class="fmt-step">
@@ -5320,6 +5333,15 @@ Now convert the uploaded document or pasted content into this format. Return onl
     if (pill) { pill.textContent = friendly + ' prompt'; pill.dataset.type = surveyType; }
     const inline = document.getElementById('gptPromptTypeInline');
     if (inline) inline.textContent = friendly;
+  }
+  function copyFmtExample(btn) {
+    const text = document.getElementById('fmtExampleText')?.textContent || '';
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => showToast("Couldn't copy. Select the sentence and copy it yourself.", 'warning'));
+    } else {
+      showToast("Couldn't copy. Select the sentence and copy it yourself.", 'warning');
+    }
   }
   function toggleGptPromptPreview(force) {
     const ta = document.getElementById('gptPromptPreview');
