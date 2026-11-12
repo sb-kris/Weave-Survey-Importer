@@ -188,6 +188,57 @@
        Uses .pill.header-conn so it wins over the .pill display rule that is
        defined later in the stylesheet, regardless of source order. */
     .pill.header-conn { display: none; }
+    .pill.header-conn .pill-label { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Connected account: shown in step 1 once SurveySparrow confirms the token. */
+    .account-card {
+      margin-top: 16px; padding: 14px 16px;
+      border: 1px solid hsl(var(--success) / 0.35);
+      background: hsl(var(--success) / 0.06);
+      border-radius: 10px;
+    }
+    .account-card[hidden] { display: none; }
+    .account-card:focus { outline: none; }
+    .account-main { display: flex; align-items: center; gap: 12px; }
+    .account-confirm {
+      display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 10px;
+      margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid hsl(var(--success) / 0.25);
+    }
+    .account-confirm[hidden] { display: none; }
+    .account-confirm-text { flex: 1 1 240px; font-size: 13px; color: hsl(var(--foreground)); }
+    .account-card.is-arriving { animation: account-arrive 1.6s ease-out; }
+    @keyframes account-arrive {
+      0%   { box-shadow: 0 0 0 0 hsl(var(--success) / 0.45); }
+      40%  { box-shadow: 0 0 0 8px hsl(var(--success) / 0.12); }
+      100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0); }
+    }
+    @media (prefers-reduced-motion: reduce) { .account-card.is-arriving { animation: none; } }
+    .account-avatar {
+      width: 40px; height: 40px; flex-shrink: 0;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: hsl(var(--accent)); color: hsl(var(--primary-text));
+      border: 1px solid hsl(var(--primary) / 0.25);
+      font-size: 14px; font-weight: 700; letter-spacing: 0.02em;
+      overflow: hidden;
+    }
+    .account-avatar img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+    .account-text { min-width: 0; flex: 1; }
+    .account-label { font-size: 11.5px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+    .account-name { font-size: 15px; font-weight: 600; color: hsl(var(--foreground)); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-domain {
+      display: inline-block; max-width: 100%;
+      font-size: 12.5px; color: hsl(var(--primary-text));
+      text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .account-domain:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .account-check {
+      width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: hsl(var(--success)); color: hsl(var(--card));
+    }
+    .account-check svg { width: 14px; height: 14px; }
     @media (min-width: 480px) { .pill.header-conn { display: inline-flex; } }
 
     /* ─────────── Theme menu ─────────── */
@@ -2379,6 +2430,22 @@
       </button>
       <span class="status-msg" id="connectStatus">Not connected</span>
     </div>
+    <div class="account-card" id="accountCard" role="status" tabindex="-1" hidden>
+      <div class="account-main">
+        <span class="account-avatar" id="accountAvatar" aria-hidden="true"></span>
+        <div class="account-text">
+          <div class="account-label">Connected to</div>
+          <div class="account-name" id="accountName"></div>
+          <a class="account-domain" id="accountDomain" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+        <span class="account-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+      </div>
+      <div class="account-confirm" id="accountConfirm">
+        <span class="account-confirm-text">Your survey will be created in this account. Is this the right one?</span>
+        <button class="btn-secondary" type="button" onclick="useDifferentAccount()">Use a different account</button>
+        <button class="btn-primary" type="button" id="accountContinueBtn" onclick="confirmAccount()">Yes, continue</button>
+      </div>
+    </div>
     <div id="credStatus" class="cred-status" style="display:none">
       <span class="cred-saved-dot"></span>
       <span>Access token remembered on this device.</span>
@@ -3993,10 +4060,124 @@ $account_name"></textarea>
       const key = getApiKey();
       const masked = key ? '••••' + key.slice(-4) : '';
       summary.textContent = [region, masked, 'Connected'].filter(Boolean).join('  ·  ');
-      if (head) toggleCard(head, true);
+      // Stay open: the user confirms the account before moving on.
     } else if (head) {
       toggleCard(head, false);
     }
+  }
+
+  /* Connected account name. Fetched after a successful connect; any failure
+     leaves the plain "Connected" state in place. A counter drops responses
+     that arrive after the user has already reconnected with another token. */
+  let _accountReq = 0;
+  let _account = null;
+  let _accountPromise = Promise.resolve();
+  function accountInitials(name) {
+    const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+    return ((words[0]?.[0] || '') + (words[1]?.[0] || '')).toUpperCase() || '?';
+  }
+  function fetchAccountInfo() {
+    const req = ++_accountReq;
+    _accountPromise = (async () => {
+      let data = null;
+      try {
+        const res = await fetch(`${BASE}/account-info`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ region: getRegion(), apiKey: getApiKey() }),
+        });
+        if (res.ok) data = await res.json();
+      } catch (_) { /* fall through to the unnamed state */ }
+      if (req !== _accountReq) return;
+      // Without a name we still show the box, so the user is asked to check
+      // they're in the right account before creating anything.
+      showAccountInfo(data && data.companyName ? data : { companyName: null, domain: null, logo: null });
+    })();
+    return _accountPromise;
+  }
+  function showAccountInfo(acc) {
+    _account = acc;
+    const card = document.getElementById('accountCard');
+    const avatar = document.getElementById('accountAvatar');
+    const nameEl = document.getElementById('accountName');
+    const domEl = document.getElementById('accountDomain');
+    if (!card) return;
+    if (!acc.companyName) {
+      nameEl.textContent = 'Your SurveySparrow account';
+      avatar.textContent = '?';
+      domEl.hidden = true;
+      card.hidden = false;
+      const st = document.getElementById('connectStatus'); if (st) st.textContent = '';
+      document.querySelector('#accountConfirm .account-confirm-text').textContent =
+        "We couldn't read this account's name. Make sure this token is for the account you want the survey in.";
+      return;
+    }
+    document.querySelector('#accountConfirm .account-confirm-text').textContent =
+      'Your survey will be created in this account. Is this the right one?';
+    nameEl.textContent = acc.companyName;
+    avatar.textContent = '';
+    if (acc.logo && /^https:\/\//.test(acc.logo)) {
+      const img = document.createElement('img');
+      img.src = acc.logo; img.alt = '';
+      img.onerror = () => { avatar.textContent = accountInitials(acc.companyName); };
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = accountInitials(acc.companyName);
+    }
+    if (acc.domain) {
+      domEl.textContent = acc.domain;
+      domEl.href = 'https://' + acc.domain;
+      domEl.hidden = false;
+      // Pre-fill the builder-link address when the user hasn't set one.
+      const urlEl = document.getElementById('appBaseUrl');
+      if (urlEl && (!urlEl.value.trim() || urlEl.dataset.autofilled === '1')) {
+        urlEl.value = 'https://' + acc.domain;
+        urlEl.dataset.autofilled = '1';
+      }
+    } else {
+      domEl.hidden = true;
+    }
+    card.hidden = false;
+    const status = document.getElementById('connectStatus');
+    if (status) status.textContent = '';
+    const pill = document.getElementById('headerConnPill');
+    const label = pill?.querySelector('.pill-label');
+    if (label) label.textContent = acc.companyName;
+    if (pill) pill.title = `Connected to ${acc.companyName}${acc.domain ? ' (' + acc.domain + ')' : ''}`;
+    const summary = document.getElementById('connectionSummary');
+    if (summary) summary.textContent = [acc.companyName, getRegion(), 'Connected'].filter(Boolean).join('  ·  ');
+  }
+  /* Draw the eye to the account box right after Connect. */
+  function highlightAccount() {
+    const card = document.getElementById('accountCard');
+    if (!card || card.hidden) return;
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+    card.classList.remove('is-arriving');
+    void card.offsetWidth;
+    card.classList.add('is-arriving');
+    document.getElementById('accountContinueBtn')?.focus({ preventScroll: true });
+  }
+  function confirmAccount() {
+    _flow.accountConfirmed = true;
+    completeStep('connect');
+  }
+  function useDifferentAccount() {
+    const key = document.getElementById('apiKey');
+    if (key) key.value = '';
+    setConnected('disconnected');
+    key?.focus();
+  }
+  function clearAccountInfo() {
+    _accountReq++;
+    _account = null;
+    _flow.accountConfirmed = false;
+    const card = document.getElementById('accountCard');
+    if (card) card.hidden = true;
+    const pill = document.getElementById('headerConnPill');
+    if (pill) pill.removeAttribute('title');
+    const urlEl = document.getElementById('appBaseUrl');
+    if (urlEl && urlEl.dataset.autofilled === '1') { urlEl.value = ''; delete urlEl.dataset.autofilled; }
   }
 
   /* SurveySparrow account-wide API rate cap. Persisted so the value survives
@@ -6521,7 +6702,7 @@ Now convert the uploaded document or pasted content into this format. Return onl
      there") opens its card, scrolls to it and focuses its first control. */
   const FLOW_STEPS = [
     { id: 'connect',   label: 'Connect',    target: 'step-connect',   focus: 'apiKey',
-      next: 'Choose your region, paste your SurveySparrow access token, then click Connect.' },
+      next: 'Choose your region, paste your SurveySparrow access token and click Connect. Then check it shows the right account.' },
     { id: 'folder',    label: 'Folder',     target: 'step-folder',    focus: 'folderSearch', optional: true,
       next: 'Pick the folder this survey should go in and click Use this folder. If you skip this, it goes in the folder shown in the list.' },
     { id: 'settings',  label: 'Settings',   target: 'step-settings',  focus: 'surveyType', optional: true,
@@ -6546,7 +6727,7 @@ Now convert the uploaded document or pasted content into this format. Return onl
     let vars = 0;
     try { vars = (loadVariables() || []).length; } catch (_) {}
     return {
-      connect: !!document.getElementById('headerConnPill')?.classList.contains('pill-success'),
+      connect: !!document.getElementById('headerConnPill')?.classList.contains('pill-success') && !!_flow.accountConfirmed,
       folder: _flow.folder,
       settings: _flow.settings,
       getprompt: _flow.getprompt,
@@ -6651,6 +6832,12 @@ Now convert the uploaded document or pasted content into this format. Return onl
   function goToFlowStep(i, opts = {}) {
     const step = FLOW_STEPS[i];
     if (!step) return;
+    // Connected but not yet confirmed: send the user to the account check.
+    if (step.id === 'connect' && !document.getElementById('accountCard')?.hidden) {
+      setCardOpen(document.getElementById('connectionCard'), true);
+      highlightAccount();
+      return;
+    }
     const target = step.target ? document.getElementById(step.target) : null;
     const card = target?.closest('.card');
     if (card) setCardOpen(card, true);
@@ -6670,9 +6857,13 @@ Now convert the uploaded document or pasted content into this format. Return onl
       focusEl.classList.add('flow-flash');
     }
   }
+  /* Connect, then stop on the account box so the user can check it's the
+     right account. "Yes, continue" there moves on to the folder step. */
   async function connectAndContinue() {
     await loadFolders();
-    if (document.getElementById('headerConnPill')?.classList.contains('pill-success')) completeStep('connect');
+    if (!document.getElementById('headerConnPill')?.classList.contains('pill-success')) return;
+    await _accountPromise;
+    highlightAccount();
   }
   /* One source of truth (#displayLogic) with two switches: step 6 and the
      floating bar. The rule count comes from "Show if:" lines in the survey. */
@@ -6715,6 +6906,7 @@ Now convert the uploaded document or pasted content into this format. Return onl
     const onEdit = (e) => {
       const id = e.target && e.target.id;
       if (id === 'folder' || id === 'folderSearch') syncFolderConfirm();
+      if (id === 'appBaseUrl' && e.target.dataset) delete e.target.dataset.autofilled;
       if (id === 'prompt') { syncPromptContinue(); renderVariablesList(); syncLogicUi(); }
       updateFlow();
     };
@@ -6740,7 +6932,10 @@ Now convert the uploaded document or pasted content into this format. Return onl
     openLlmFormatter = after(openLlmFormatter, markPrompt);
     copyGptPrompt = after(copyGptPrompt, markPrompt);
     insertLlmIntoPrompt = after(insertLlmIntoPrompt, () => { syncLogicUi(); renderVarDetect(); });
-    setConnected = after(setConnected, () => syncFolderConfirm());
+    setConnected = after(setConnected, (state) => {
+      syncFolderConfirm();
+      if (state === 'connected') fetchAccountInfo(); else clearAccountInfo();
+    });
     loadFolders = after(loadFolders, () => syncFolderConfirm());
     renderVariablesList = after(renderVariablesList, () => {
       const hint = document.getElementById('variablesContinueHint');

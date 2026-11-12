@@ -130,6 +130,28 @@ router.post("/folders", async (req, res) => {
   });
 });
 
+/* Which SurveySparrow account a token belongs to, so the UI can show
+   "Connected to <company>". Only the display fields are passed back; the
+   full payload (feature flags, billing details) never reaches the browser.
+   Best-effort: the UI treats any failure as "name unavailable". */
+router.post("/account-info", async (req, res) => {
+  const { region, apiKey } = req.body as { region?: string; apiKey?: string };
+  if (!region || !apiKey) { res.status(400).json({ error: "region and apiKey are required" }); return; }
+  try {
+    const result = await ssGet(getBaseUrl(region), apiKey, "/api/internal/integration/accountinfo");
+    if (!result.ok) { res.status(result.status).json({ error: "Account details unavailable" }); return; }
+    const d = (result.data?.data ?? result.data ?? {}) as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+    res.json({
+      companyName: str(d.company_name) ?? str(d.name),
+      domain: str(d.domain),
+      logo: str(d.logo),
+    });
+  } catch {
+    res.status(502).json({ error: "Account details unavailable" });
+  }
+});
+
 router.post("/create-survey", async (req, res) => {
   await rateScope.run(new RateLimiter(readApiCallsPerMinute(req.body)), async () => {
   const {
