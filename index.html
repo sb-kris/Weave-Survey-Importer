@@ -206,7 +206,7 @@
       border-top: 1px solid hsl(var(--success) / 0.25);
     }
     .account-confirm[hidden] { display: none; }
-    .account-confirm-text { flex: 1 1 240px; font-size: 13px; color: hsl(var(--foreground)); }
+    .account-confirm-text { flex: 1 1 100%; font-size: 13px; color: hsl(var(--foreground)); }
     .account-card.is-arriving { animation: account-arrive 1.6s ease-out; }
     @keyframes account-arrive {
       0%   { box-shadow: 0 0 0 0 hsl(var(--success) / 0.45); }
@@ -233,6 +233,24 @@
       text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .account-domain:hover { text-decoration: underline; text-underline-offset: 3px; }
+    /* Account ID chip + Area51 link, on their own line under the domain. */
+    .account-admin { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; }
+    .account-id {
+      display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+      font-family: 'Roboto Mono', ui-monospace, Menlo, monospace; font-size: 11.5px;
+      color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums;
+      background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 6px;
+    }
+    .account-admin[hidden], .a51-link[hidden], .account-domain[hidden] { display: none; }
+    /* Link out to Area51 (SurveySparrow's internal admin) for this account. */
+    .a51-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12.5px; font-weight: 600; color: hsl(var(--primary-text));
+      text-decoration: underline; text-underline-offset: 3px; white-space: nowrap;
+    }
+    .a51-link svg { width: 12px; height: 12px; flex-shrink: 0; }
+    .a51-link:hover { color: hsl(var(--primary-hover)); }
+    .adv-hint .a51-link { font-size: inherit; margin-top: 4px; }
     .account-check {
       width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
@@ -716,6 +734,12 @@
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .field { display: flex; flex-direction: column; gap: 7px; }
     .field.full { grid-column: 1 / -1; }
+    /* Three short settings side by side; the third wraps to its own row on tablets. */
+    .row.row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 820px) {
+      .row.row-3 { grid-template-columns: 1fr 1fr; }
+      .row.row-3 > .field:nth-child(3) { grid-column: 1 / -1; }
+    }
     label {
       font-size: 12.5px;
       font-weight: 500;
@@ -740,6 +764,23 @@
       transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
       width: 100%;
     }
+    /* Own chevron so the text lines up with text inputs and the arrow sits
+       12px from the edge, the same in every browser. */
+    select {
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 36px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px 16px;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    html.dark select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    }
+    select:disabled { cursor: not-allowed; }
     input:focus, select:focus, textarea:focus {
       border-color: hsl(var(--ring));
       box-shadow: 0 0 0 3px hsl(var(--ring) / 0.18);
@@ -2092,6 +2133,7 @@
       padding: 5px 8px;
       min-height: 0;
     }
+    .bulk-paste-table select { padding-right: 26px; background-position: right 7px center; background-size: 13px 13px; }
 
     /* ─────────── Rate banner progress bar ─────────── */
     .rate-progress-track {
@@ -2437,6 +2479,10 @@
           <div class="account-label">Connected to</div>
           <div class="account-name" id="accountName"></div>
           <a class="account-domain" id="accountDomain" target="_blank" rel="noopener noreferrer"></a>
+          <div class="account-admin" id="accountAdmin" hidden>
+            <span class="account-id" id="accountId"></span>
+            <a class="a51-link" id="accountA51" target="_blank" rel="noopener noreferrer" hidden>Open in Area51<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+          </div>
         </div>
         <span class="account-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
       </div>
@@ -2491,7 +2537,7 @@
       <span class="card-summary" id="settingsSummary"></span>
       <button class="card-chevron" type="button" aria-label="Toggle section" aria-expanded="true" title="Collapse or expand this section" onclick="event.stopPropagation();toggleCard(this.closest('.card-head'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
     </div>
-    <div class="row">
+    <div class="row row-3">
       <div class="field">
         <div class="label-row">
           <label for="surveyType">Survey type</label>
@@ -2540,16 +2586,6 @@
           </div>
         </div>
         <input type="text" id="surveyTitle" placeholder="My Survey" />
-      </div>
-      <div class="field" style="grid-column:1/-1">
-        <div class="label-row">
-          <label for="appBaseUrl">Your SurveySparrow address <span class="opt-hint">(optional)</span></label>
-          <div class="tooltip-wrap">
-            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Field help">?</span>
-            <div class="tooltip-bubble">The web address you use to open SurveySparrow, for example https://yourcompany.surveysparrow.com. Add it and the results will include a link that opens the survey in the builder.</div>
-          </div>
-        </div>
-        <input type="text" id="appBaseUrl" placeholder="https://yourcompany.surveysparrow.com" />
       </div>
       <details class="adv-settings">
         <summary>
@@ -2615,7 +2651,7 @@
               <div class="field adv-field">
                 <label for="apiCallsPerMinute">Calls per minute</label>
                 <input type="number" id="apiCallsPerMinute" min="1" step="1" value="120" aria-describedby="apiRateHint" />
-                <p class="adv-hint" id="apiRateHint">SurveySparrow's default is 120. Only raise it if SurveySparrow has confirmed a higher limit for your account.</p>
+                <p class="adv-hint" id="apiRateHint">SurveySparrow's default is 120. Only raise it if SurveySparrow has confirmed a higher limit for your account.<br><a class="a51-link" id="apiRateA51" target="_blank" rel="noopener noreferrer" hidden>Check this account's limit in Area51<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></p>
               </div>
             </fieldset>
           </div>
@@ -4091,12 +4127,13 @@ $account_name"></textarea>
       if (req !== _accountReq) return;
       // Without a name we still show the box, so the user is asked to check
       // they're in the right account before creating anything.
-      showAccountInfo(data && data.companyName ? data : { companyName: null, domain: null, logo: null });
+      showAccountInfo(data && data.companyName ? data : { companyName: null, domain: null, logo: null, accountId: (data && data.accountId) || null });
     })();
     return _accountPromise;
   }
   function showAccountInfo(acc) {
     _account = acc;
+    syncArea51Links();
     const card = document.getElementById('accountCard');
     const avatar = document.getElementById('accountAvatar');
     const nameEl = document.getElementById('accountName');
@@ -4128,12 +4165,6 @@ $account_name"></textarea>
       domEl.textContent = acc.domain;
       domEl.href = 'https://' + acc.domain;
       domEl.hidden = false;
-      // Pre-fill the builder-link address when the user hasn't set one.
-      const urlEl = document.getElementById('appBaseUrl');
-      if (urlEl && (!urlEl.value.trim() || urlEl.dataset.autofilled === '1')) {
-        urlEl.value = 'https://' + acc.domain;
-        urlEl.dataset.autofilled = '1';
-      }
     } else {
       domEl.hidden = true;
     }
@@ -4158,6 +4189,32 @@ $account_name"></textarea>
     card.classList.add('is-arriving');
     document.getElementById('accountContinueBtn')?.focus({ preventScroll: true });
   }
+  /* Web address of the connected account (from the account-info API), used
+     for the "Open in SurveySparrow" link. Null when the API gave no domain. */
+  function getAppBaseUrl() {
+    const d = _account && _account.domain ? String(_account.domain).trim().toLowerCase() : '';
+    const host = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    return /^[a-z0-9.-]+$/.test(host) ? 'https://' + host : null;
+  }
+  /* Area51 is SurveySparrow's internal admin. The account's page there shows
+     its plan and API limits. Null when the API gave no numeric account ID. */
+  const AREA51_ACCOUNT_URL = 'https://area51.surveysparrow.com/super-admin/accounts/';
+  function getArea51Url() {
+    const id = _account && _account.accountId ? String(_account.accountId) : '';
+    return /^\d{1,20}$/.test(id) ? AREA51_ACCOUNT_URL + id : null;
+  }
+  function syncArea51Links() {
+    const url = getArea51Url();
+    const idEl = document.getElementById('accountId');
+    if (idEl) idEl.textContent = url ? 'ID ' + _account.accountId : '';
+    const adminEl = document.getElementById('accountAdmin');
+    if (adminEl) adminEl.hidden = !url;
+    ['accountA51', 'apiRateA51'].forEach(id => {
+      const a = document.getElementById(id);
+      if (!a) return;
+      if (url) { a.href = url; a.hidden = false; } else { a.removeAttribute('href'); a.hidden = true; }
+    });
+  }
   function confirmAccount() {
     _flow.accountConfirmed = true;
     completeStep('connect');
@@ -4171,13 +4228,12 @@ $account_name"></textarea>
   function clearAccountInfo() {
     _accountReq++;
     _account = null;
+    syncArea51Links();
     _flow.accountConfirmed = false;
     const card = document.getElementById('accountCard');
     if (card) card.hidden = true;
     const pill = document.getElementById('headerConnPill');
     if (pill) pill.removeAttribute('title');
-    const urlEl = document.getElementById('appBaseUrl');
-    if (urlEl && urlEl.dataset.autofilled === '1') { urlEl.value = ''; delete urlEl.dataset.autofilled; }
   }
 
   /* SurveySparrow account-wide API rate cap. Persisted so the value survives
@@ -4640,7 +4696,7 @@ $account_name"></textarea>
       else if (problems.length > 1)  { title = `Created with ${problems.length} issues to review`; statusKind = failedQCount ? 'error' : 'warning'; }
       else if (hasCompatible)        { title = 'Created. Some question types were converted for ClassicForm'; statusKind = 'warning'; }
 
-      const appBaseUrl = (document.getElementById('appBaseUrl')?.value || '').trim().replace(/\/$/, '');
+      const appBaseUrl = getAppBaseUrl();
       const surveyUrl = appBaseUrl ? `${appBaseUrl}/builder/edit/${data.surveyId}` : null;
 
       const RESULT_ICONS = {
@@ -4676,6 +4732,7 @@ $account_name"></textarea>
       const compatCount = data.compatibleCount || 0;
       const fallbackCount = data.fallbackCount || 0;
       let sub = `Survey ID <b>${escHtml(String(data.surveyId))}</b>`;
+      if (_account && _account.companyName) sub = `In <b>${escHtml(_account.companyName)}</b> &nbsp;·&nbsp; ` + sub;
       const extra = [];
       if (enrichedCount > 0) extra.push(`${enrichedCount} enriched`);
       if (compatCount > 0)   extra.push(`${compatCount} converted`);
@@ -6906,7 +6963,6 @@ Now convert the uploaded document or pasted content into this format. Return onl
     const onEdit = (e) => {
       const id = e.target && e.target.id;
       if (id === 'folder' || id === 'folderSearch') syncFolderConfirm();
-      if (id === 'appBaseUrl' && e.target.dataset) delete e.target.dataset.autofilled;
       if (id === 'prompt') { syncPromptContinue(); renderVariablesList(); syncLogicUi(); }
       updateFlow();
     };

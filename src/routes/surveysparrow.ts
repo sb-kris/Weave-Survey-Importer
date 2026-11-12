@@ -142,7 +142,9 @@ router.post("/account-info", async (req, res) => {
     if (!result.ok) { res.status(result.status).json({ error: "Account details unavailable" }); return; }
     const d = (result.data?.data ?? result.data ?? {}) as Record<string, unknown>;
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+    const rawId = typeof d.id === "number" ? String(d.id) : str(d.id);
     res.json({
+      accountId: rawId && /^\d{1,20}$/.test(rawId) ? rawId : null,
       companyName: str(d.company_name) ?? str(d.name),
       domain: str(d.domain),
       logo: str(d.logo),
